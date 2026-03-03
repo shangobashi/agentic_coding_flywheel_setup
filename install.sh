@@ -4850,12 +4850,13 @@ finalize() {
         log_detail "Configuring workspace trust for coding agents..."
         local claude_settings_file="$TARGET_HOME/.claude/settings.json"
         if [[ -f "$claude_settings_file" ]] && command -v jq &>/dev/null; then
+            # Use run_as_target for the entire jq+mv pipeline so the temp file
+            # is created with target user ownership (not root). Previously the
+            # shell redirect "> $tmp_settings" ran as root, leaving a root-owned
+            # settings file that the target user couldn't modify later.
             local tmp_settings="${claude_settings_file}.tmp.$$"
-            # Add skipDangerousModePermissionPrompt and ensure /data/projects is trusted
-            if run_as_target jq '
-                .skipDangerousModePermissionPrompt = true
-            ' "$claude_settings_file" > "$tmp_settings" 2>/dev/null; then
-                run_as_target mv "$tmp_settings" "$claude_settings_file" 2>/dev/null || true
+            if run_as_target bash -c "jq '.skipDangerousModePermissionPrompt = true' \"\$1\" > \"\$2\" && mv \"\$2\" \"\$1\"" \
+                    _ "$claude_settings_file" "$tmp_settings" 2>/dev/null; then
                 log_detail "Claude workspace trust configured"
             else
                 run_as_target rm -f "$tmp_settings" 2>/dev/null || true
@@ -4869,6 +4870,63 @@ finalize() {
 }
 CLAUDE_TRUST_EOF
             log_detail "Claude settings created with workspace trust"
+        fi
+
+        # Gemini CLI trust pre-configuration (fixes #159 follow-up)
+        # Gemini CLI prompts for folder trust on first run. Pre-configure trusted
+        # folders so agents can start without interactive approval.
+        local gemini_settings_file="$TARGET_HOME/.gemini/settings.json"
+        if [[ -f "$gemini_settings_file" ]] && command -v jq &>/dev/null; then
+            local tmp_gemini="${gemini_settings_file}.tmp.$$"
+            # Enable folder trust and set yolo-equivalent sandbox bypass
+            if run_as_target bash -c "jq '
+                .security = (.security // {})
+                | .security.folderTrust = (.security.folderTrust // {})
+                | .security.folderTrust.enabled = true
+            ' \"\$1\" > \"\$2\" && mv \"\$2\" \"\$1\"" \
+                    _ "$gemini_settings_file" "$tmp_gemini" 2>/dev/null; then
+                log_detail "Gemini workspace trust configured"
+            else
+                run_as_target rm -f "$tmp_gemini" 2>/dev/null || true
+            fi
+        elif [[ ! -f "$gemini_settings_file" ]]; then
+            run_as_target mkdir -p "$TARGET_HOME/.gemini" 2>/dev/null || true
+            run_as_target tee "$gemini_settings_file" > /dev/null << 'GEMINI_TRUST_EOF'
+{
+  "security": {
+    "folderTrust": {
+      "enabled": true
+    }
+  }
+}
+GEMINI_TRUST_EOF
+            log_detail "Gemini settings created with workspace trust"
+        fi
+
+        # Pre-populate Gemini trusted folders list so agents skip the
+        # interactive "Trust this folder?" prompt entirely.
+        local gemini_trusted_folders="$TARGET_HOME/.gemini/trustedFolders.json"
+        if [[ ! -f "$gemini_trusted_folders" ]]; then
+            run_as_target tee "$gemini_trusted_folders" > /dev/null << GEMINI_FOLDERS_EOF
+["/data/projects", "$TARGET_HOME"]
+GEMINI_FOLDERS_EOF
+            log_detail "Gemini trusted folders pre-configured"
+        elif command -v jq &>/dev/null; then
+            # Ensure /data/projects and $HOME are in the trusted list
+            local tmp_folders="${gemini_trusted_folders}.tmp.$$"
+            if run_as_target bash -c '
+                folders=$(jq -r ".[]" "$1" 2>/dev/null || echo "")
+                needs_update=false
+                echo "$folders" | grep -qxF "/data/projects" || needs_update=true
+                echo "$folders" | grep -qxF "$2" || needs_update=true
+                if [ "$needs_update" = "true" ]; then
+                    jq ". + [\"/data/projects\", \"$2\"] | unique" "$1" > "$3" && mv "$3" "$1"
+                fi
+            ' _ "$gemini_trusted_folders" "$TARGET_HOME" "$tmp_folders" 2>/dev/null; then
+                log_detail "Gemini trusted folders updated"
+            else
+                run_as_target rm -f "$tmp_folders" 2>/dev/null || true
+            fi
         fi
     fi
 

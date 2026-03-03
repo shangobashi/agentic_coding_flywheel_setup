@@ -146,7 +146,7 @@ fix_path_ordering() {
 
     doctor_fix_log INFO "Added PATH ordering to $target_file"
     FIXES_APPLIED+=("fix.path.ordering|Added PATH ordering to $target_file")
-    ((FIX_APPLIED++))
+    FIX_APPLIED=$((FIX_APPLIED + 1))
 
     return 0
 }
@@ -193,7 +193,7 @@ fix_config_copy() {
 
     doctor_fix_log INFO "Copied $(basename "$src") to $dest"
     FIXES_APPLIED+=("fix.config.copy|Copied $(basename "$src") to $dest")
-    ((FIX_APPLIED++))
+    FIX_APPLIED=$((FIX_APPLIED + 1))
 
     return 0
 }
@@ -233,11 +233,11 @@ fix_dcg_hook() {
 
         doctor_fix_log INFO "Installed DCG pre-tool-use hook"
         FIXES_APPLIED+=("fix.dcg.hook|Installed DCG pre-tool-use hook")
-        ((FIX_APPLIED++))
+        FIX_APPLIED=$((FIX_APPLIED + 1))
         return 0
     else
         doctor_fix_log ERROR "Failed to install DCG hook"
-        ((FIX_FAILED++))
+        FIX_FAILED=$((FIX_FAILED + 1))
         return 1
     fi
 }
@@ -284,7 +284,7 @@ fix_symlink_create() {
 
     doctor_fix_log INFO "Created symlink: $(basename "$symlink") -> $binary"
     FIXES_APPLIED+=("fix.symlink.create|Created symlink $(basename "$symlink")")
-    ((FIX_APPLIED++))
+    FIX_APPLIED=$((FIX_APPLIED + 1))
 
     return 0
 }
@@ -312,7 +312,7 @@ fix_plugin_clone() {
     if [[ ! -d "$HOME/.oh-my-zsh" ]]; then
         doctor_fix_log WARN "Oh-my-zsh not installed, cannot install plugins"
         FIXES_MANUAL+=("fix.plugin.clone|Install Oh-my-zsh first|curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh | bash")
-        ((FIX_MANUAL++))
+        FIX_MANUAL=$((FIX_MANUAL + 1))
         return 1
     fi
 
@@ -334,11 +334,11 @@ fix_plugin_clone() {
 
         doctor_fix_log INFO "Cloned zsh plugin: $plugin_name"
         FIXES_APPLIED+=("fix.plugin.clone|Cloned zsh plugin: $plugin_name")
-        ((FIX_APPLIED++))
+        FIX_APPLIED=$((FIX_APPLIED + 1))
         return 0
     else
         doctor_fix_log ERROR "Failed to clone plugin: $plugin_name"
-        ((FIX_FAILED++))
+        FIX_FAILED=$((FIX_FAILED + 1))
         return 1
     fi
 }
@@ -393,7 +393,7 @@ fix_acfs_sourcing() {
 
     doctor_fix_log INFO "Added ACFS sourcing to .zshrc"
     FIXES_APPLIED+=("fix.acfs.sourcing|Added ACFS sourcing to .zshrc")
-    ((FIX_APPLIED++))
+    FIX_APPLIED=$((FIX_APPLIED + 1))
 
     return 0
 }
@@ -491,13 +491,13 @@ dispatch_fix() {
             if [[ -n "$fix_hint" ]]; then
                 FIXES_MANUAL+=("$check_id|Requires manual action|$fix_hint")
             fi
-            ((FIX_MANUAL++))
+            FIX_MANUAL=$((FIX_MANUAL + 1))
             return 0
             ;;
 
         *)
             # Unknown check - skip silently
-            ((FIX_SKIPPED++))
+            FIX_SKIPPED=$((FIX_SKIPPED + 1))
             return 0
             ;;
     esac
@@ -530,11 +530,11 @@ fix_stack_install() {
     if eval "$install_cmd" 2>/dev/null; then
         doctor_fix_log INFO "Installed $binary_name"
         FIXES_APPLIED+=("fix.stack.$binary_name|Installed $binary_name")
-        ((FIX_APPLIED++))
+        FIX_APPLIED=$((FIX_APPLIED + 1))
         return 0
     else
         doctor_fix_log ERROR "Failed to install $binary_name"
-        ((FIX_FAILED++))
+        FIX_FAILED=$((FIX_FAILED + 1))
         return 1
     fi
 }
@@ -566,11 +566,11 @@ fix_ssh_server() {
             if sudo systemctl enable --now ssh 2>/dev/null || sudo systemctl enable --now sshd 2>/dev/null; then
                 doctor_fix_log INFO "Enabled and started SSH server"
                 FIXES_APPLIED+=("fix.ssh.server|Enabled and started SSH server")
-                ((FIX_APPLIED++))
+                FIX_APPLIED=$((FIX_APPLIED + 1))
                 return 0
             else
                 doctor_fix_log ERROR "Failed to start SSH server"
-                ((FIX_FAILED++))
+                FIX_FAILED=$((FIX_FAILED + 1))
                 return 1
             fi
         fi
@@ -588,11 +588,11 @@ fix_ssh_server() {
         sudo systemctl enable --now ssh 2>/dev/null || sudo systemctl enable --now sshd 2>/dev/null || true
         doctor_fix_log INFO "Installed and enabled openssh-server"
         FIXES_APPLIED+=("fix.ssh.server|Installed and enabled openssh-server")
-        ((FIX_APPLIED++))
+        FIX_APPLIED=$((FIX_APPLIED + 1))
         return 0
     else
         doctor_fix_log ERROR "Failed to install openssh-server"
-        ((FIX_FAILED++))
+        FIX_FAILED=$((FIX_FAILED + 1))
         return 1
     fi
 }
@@ -610,7 +610,7 @@ fix_ssh_keepalive() {
     if [[ ! -f "$sshd_config" ]]; then
         doctor_fix_log WARN "sshd_config not found, install openssh-server first"
         FIXES_MANUAL+=("$check_id|Install openssh-server first|sudo apt-get install -y openssh-server")
-        ((FIX_MANUAL++))
+        FIX_MANUAL=$((FIX_MANUAL + 1))
         return 1
     fi
 
@@ -645,7 +645,7 @@ fix_ssh_keepalive() {
 
     doctor_fix_log INFO "Configured SSH keepalive (ClientAliveInterval 60, ClientAliveCountMax 3)"
     FIXES_APPLIED+=("fix.ssh.keepalive|Configured SSH keepalive settings")
-    ((FIX_APPLIED++))
+    FIX_APPLIED=$((FIX_APPLIED + 1))
 
     return 0
 }

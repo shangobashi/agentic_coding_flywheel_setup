@@ -560,13 +560,13 @@ upgrade_all_agents() {
     local failed=0
 
     if ! upgrade_claude_code; then
-        ((failed++))
+        failed=$((failed + 1))
     fi
     if ! upgrade_codex_cli; then
-        ((failed++))
+        failed=$((failed + 1))
     fi
     if ! upgrade_gemini_cli; then
-        ((failed++))
+        failed=$((failed + 1))
     fi
 
     if ((failed == 0)); then
