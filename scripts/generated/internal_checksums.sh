@@ -9,13 +9,13 @@
 
 declare -gA ACFS_INTERNAL_CHECKSUMS=(
   [scripts/lib/security.sh]="1648e29171cf0ab04255a25cc186ecae9060b6d6efad16a076b98c1ff91fea2a"
-  [scripts/lib/agents.sh]="a4ff1de7750b8c7e195bf9f2a98254e54024ddfcf319d25a961b8eb46583e8d2"
+  [scripts/lib/agents.sh]="73db5c2a5dabad67a34bba4c38fff674bfe275bd0f975dbda74b5a24c04260df"
   [scripts/lib/update.sh]="fd30a887a72baf1ba410d798de2d3a06c56867f469e67a2549b1ffa4b981f8a7"
-  [scripts/lib/doctor.sh]="88c23c8ba8241b2ed7b4199525a19ca2378da20aa9f6d8dae7806ff1e53882fb"
+  [scripts/lib/doctor.sh]="c3f0c3f349fbf4e65c9bdf7a3ec5d21d1ed22a950f64dba108e64a301e045fd7"
   [scripts/lib/install_helpers.sh]="e5334330a9b733f44ef481afa11833c79f39544466a1fe5b478f2d610ec50c8d"
   [scripts/lib/logging.sh]="2c59b18646afd9b5413ac2b7956f6dea2299fe2f108913c2d998bdd8c5abcb97"
   [scripts/lib/state.sh]="2aa67b11352abe8067e6e7c029543ef1dbcbc908ae6b420262e7eab8cbf414f0"
-  [scripts/lib/session.sh]="f008658acc15c08929013d46af33f62ca4306cafaf5cf3344bd0626e3e41f137"
+  [scripts/lib/session.sh]="7fb820d4225322a47370872ecb48cb6e735866a676d155d26bf0eab8b519db67"
   [scripts/lib/os_detect.sh]="841c65c20ac86d45c59c852a537c3fc17a7a6923914ba07e5cddf57a45ae4223"
   [scripts/lib/errors.sh]="66b949934dd903b7b89e1641ac8002cbb53dfb2aee10d0948ceec4131e9deec7"
   [scripts/lib/user.sh]="cb930d188d96cca16da41ac14e62caf4317059d09d61249fc48fdbed998ea565"
