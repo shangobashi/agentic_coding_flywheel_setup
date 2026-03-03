@@ -912,30 +912,20 @@ update_acfs_self() {
         return 0
     fi
 
-    # Stash local modifications so they don't block the pull
-    local stashed=false
+    # Never mutate a dirty working tree during self-update.
+    # Auto-stash/reapply can create conflicts and unexpectedly rewrite local work.
     if ! git -C "$ACFS_REPO_ROOT" diff --quiet 2>/dev/null || ! git -C "$ACFS_REPO_ROOT" diff --cached --quiet 2>/dev/null; then
-        log_to_file "Local modifications detected, stashing before update..."
-        if git -C "$ACFS_REPO_ROOT" stash --quiet 2>/dev/null; then
-            stashed=true
-        fi
+        log_item "warn" "ACFS self-update" "local changes detected; skipping self-update"
+        log_to_file "Self-update skipped: working tree has local modifications"
+        return 0
     fi
 
     # Pull updates
     log_to_file "Pulling updates..."
     if ! git -C "$ACFS_REPO_ROOT" pull --ff-only origin main 2>/dev/null; then
-        # ff-only failed (diverged history?), try reset --mixed
-        log_to_file "ff-only pull failed, using reset --mixed"
-        git -C "$ACFS_REPO_ROOT" reset --mixed origin/main 2>/dev/null || {
-            log_item "warn" "ACFS self-update" "git update failed"
-            [[ "$stashed" == "true" ]] && git -C "$ACFS_REPO_ROOT" stash pop --quiet 2>/dev/null || true
-            return 0
-        }
-    fi
-
-    # Restore local modifications
-    if [[ "$stashed" == "true" ]]; then
-        git -C "$ACFS_REPO_ROOT" stash pop --quiet 2>/dev/null || true
+        log_item "warn" "ACFS self-update" "ff-only pull failed; skipping (branch divergence?)"
+        log_to_file "Self-update skipped: git pull --ff-only failed"
+        return 0
     fi
 
     log_item "ok" "ACFS" "updated ($commit_count commits)"
@@ -1013,6 +1003,49 @@ update_apt() {
 
 # Wait for apt lock to be released, with automatic retry
 # Returns 0 if lock is free, 1 if still locked after max attempts
+apt_lock_is_held() {
+    local lockfile="$1"
+
+    command -v fuser &>/dev/null || return 1
+    [[ -f "$lockfile" ]] || return 1
+
+    # Try as current user first (works when lockfile is readable).
+    if fuser "$lockfile" &>/dev/null; then
+        return 0
+    fi
+
+    # Fallback to non-interactive sudo to avoid hanging in safe mode / CI.
+    if command -v sudo &>/dev/null; then
+        sudo -n fuser "$lockfile" &>/dev/null && return 0
+    fi
+
+    return 1
+}
+
+apt_lock_holder_details() {
+    local lockfile="$1"
+    local details=""
+
+    command -v fuser &>/dev/null || return 1
+    [[ -f "$lockfile" ]] || return 1
+
+    details=$(fuser -v "$lockfile" 2>&1 || true)
+    if [[ -n "$details" ]]; then
+        printf '%s\n' "$details"
+        return 0
+    fi
+
+    if command -v sudo &>/dev/null; then
+        details=$(sudo -n fuser -v "$lockfile" 2>/dev/null || true)
+        if [[ -n "$details" ]]; then
+            printf '%s\n' "$details"
+            return 0
+        fi
+    fi
+
+    return 1
+}
+
 wait_for_apt_lock() {
     local max_wait=${1:-120}  # Default 120 seconds (2 minutes)
     local interval=5
@@ -1028,7 +1061,7 @@ wait_for_apt_lock() {
         # daemon) don't hold locks unless actively installing
         local lock_held=false
         for lockfile in /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock /var/lib/dpkg/lock; do
-            if [[ -f "$lockfile" ]] && fuser "$lockfile" &>/dev/null; then
+            if apt_lock_is_held "$lockfile"; then
                 lock_held=true
                 break
             fi
@@ -1042,7 +1075,7 @@ wait_for_apt_lock() {
             log_item "wait" "apt lock" "waiting for other package operations to complete..."
             log_to_file "APT lock detected, waiting up to ${max_wait}s for release"
             local lock_info=""
-            lock_info=$(fuser -v /var/lib/dpkg/lock-frontend 2>&1 || true)
+            lock_info=$(apt_lock_holder_details /var/lib/dpkg/lock-frontend 2>/dev/null || true)
             [[ -n "$lock_info" ]] && log_to_file "Lock holder: $lock_info"
         fi
 
@@ -1103,7 +1136,7 @@ check_apt_lock() {
     # actively installing, so pgrep-based checks cause false positives.
     local locks_held=false
     for lockfile in /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock /var/lib/dpkg/lock; do
-        if [[ -f "$lockfile" ]] && fuser "$lockfile" &>/dev/null; then
+        if apt_lock_is_held "$lockfile"; then
             locks_held=true
             break
         fi
@@ -1124,7 +1157,7 @@ check_apt_lock() {
     log_to_file "APT lock still held after waiting"
 
     local lock_holder=""
-    lock_holder=$(sudo fuser -v /var/lib/dpkg/lock-frontend 2>&1 || true)
+    lock_holder=$(apt_lock_holder_details /var/lib/dpkg/lock-frontend 2>/dev/null || true)
     if [[ -n "$lock_holder" ]]; then
         log_to_file "Lock holder: $lock_holder"
         if [[ "$QUIET" != "true" ]]; then

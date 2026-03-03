@@ -112,3 +112,52 @@ EOF
     run cat "$log_file"
     assert_output --partial "install ast-grep --locked --force"
 }
+
+@test "apt_lock_is_held: uses plain fuser when accessible" {
+    init_stub_dir
+    local lockfile="$HOME/dpkg.lock"
+    local fuser_log="$HOME/fuser.log"
+    : > "$lockfile"
+
+    cat > "$STUB_DIR/fuser" <<EOF
+#!/usr/bin/env bash
+echo "\$*" >> "$fuser_log"
+exit 0
+EOF
+    chmod +x "$STUB_DIR/fuser"
+
+    run apt_lock_is_held "$lockfile"
+    assert_success
+
+    run cat "$fuser_log"
+    assert_output --partial "$lockfile"
+}
+
+@test "apt_lock_is_held: falls back to sudo -n without prompting" {
+    init_stub_dir
+    local lockfile="$HOME/dpkg.lock"
+    local sudo_log="$HOME/sudo.log"
+    : > "$lockfile"
+
+    cat > "$STUB_DIR/fuser" <<'EOF'
+#!/usr/bin/env bash
+exit 1
+EOF
+    chmod +x "$STUB_DIR/fuser"
+
+    cat > "$STUB_DIR/sudo" <<EOF
+#!/usr/bin/env bash
+echo "\$*" >> "$sudo_log"
+if [[ "\$1" == "-n" ]]; then
+  exit 0
+fi
+exit 1
+EOF
+    chmod +x "$STUB_DIR/sudo"
+
+    run apt_lock_is_held "$lockfile"
+    assert_success
+
+    run cat "$sudo_log"
+    assert_output --partial "-n fuser $lockfile"
+}

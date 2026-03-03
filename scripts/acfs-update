@@ -25,7 +25,16 @@ find_update_script() {
     return 0
   fi
 
-  # Installed path (after install.sh)
+  # Installed path (relative to ~/.acfs/bin/acfs-update)
+  if [[ -f "${SCRIPT_DIR}/../scripts/lib/update.sh" ]]; then
+    candidate="${SCRIPT_DIR}/../scripts/lib/update.sh"
+    # normalize path
+    candidate="$(cd "$(dirname "$candidate")" && pwd)/$(basename "$candidate")"
+    echo "$candidate"
+    return 0
+  fi
+
+  # Installed path (after install.sh fallback)
   if [[ -f "$HOME/.acfs/scripts/lib/update.sh" ]]; then
     candidate="$HOME/.acfs/scripts/lib/update.sh"
     echo "$candidate"

@@ -108,7 +108,8 @@ webhook_format_payload() {
     # Read summary data
     local hostname ip duration_seconds tools_installed acfs_version timestamp
     hostname=$(hostname 2>/dev/null || echo "unknown")
-    ip=$(curl -s --max-time 2 ifconfig.me 2>/dev/null || echo "unknown")
+    # Use an explicit HTTPS endpoint that returns only the IP body.
+    ip=$(curl -s --max-time 2 https://ifconfig.me/ip 2>/dev/null || echo "unknown")
 
     if [[ -f "$summary_file" ]] && command -v jq &>/dev/null; then
         duration_seconds=$(jq -r '.total_seconds // 0' "$summary_file" 2>/dev/null) || duration_seconds=0

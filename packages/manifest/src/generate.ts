@@ -215,6 +215,8 @@ function shellQuote(str: string): string {
  * However, we allow specific runtime variables to be expanded:
  * - TARGET_HOME
  * - TARGET_USER
+ * - TARGET_HOME with Ubuntu default fallback
+ * - TARGET_USER with Ubuntu default fallback
  *
  * SECURITY:
  * - We do NOT use a blacklist (e.g. banning `$(`).
@@ -226,7 +228,7 @@ function shellQuoteVerifiedInstallerArg(str: string): string {
   // Regex to capture allowed variables.
   // Order matters: match longest tokens first (${VAR} before $VAR).
   // capturing group () is included in split output.
-  const variablePattern = /(\$\{TARGET_HOME\}|\$TARGET_HOME|\$\{TARGET_USER\}|\$TARGET_USER)/g;
+  const variablePattern = /(\$\{TARGET_HOME:-\/home\/ubuntu\}|\$\{TARGET_USER:-ubuntu\}|\$\{TARGET_HOME\}|\$TARGET_HOME|\$\{TARGET_USER\}|\$TARGET_USER)/g;
 
   const parts = str.split(variablePattern);
 
@@ -234,6 +236,8 @@ function shellQuoteVerifiedInstallerArg(str: string): string {
     .map((part) => {
       // If it's one of our allowed variables, wrap in double quotes to allow expansion
       if (
+        part === '${TARGET_HOME:-/home/ubuntu}' ||
+        part === '${TARGET_USER:-ubuntu}' ||
         part === '${TARGET_HOME}' ||
         part === '$TARGET_HOME' ||
         part === '${TARGET_USER}' ||
@@ -346,11 +350,7 @@ function escapeBash(str: string): string {
     .replace(/\\/g, '\\\\')  // Backslash first (order matters)
     .replace(/"/g, '\\"')    // Double quotes
     .replace(/\$/g, '\\$')   // Dollar sign (prevents variable expansion)
-    .replace(/`/g, '\\`')    // Backticks (prevents command substitution)
-    // Prevent accidental multiline/record breaks in generated bash strings.
-    .replace(/\r/g, '\\r')
-    .replace(/\n/g, '\\n')
-    .replace(/\t/g, '\\t');
+    .replace(/`/g, '\\`');   // Backticks (prevents command substitution)
 }
 
 /**
@@ -903,21 +903,21 @@ function generateManifestIndex(manifest: Manifest, manifestSha256: string): stri
   // Correct: [key]="value" or ['key']="value"
   lines.push('declare -gA ACFS_MODULE_PHASE=(');
   for (const module of orderedModules) {
-    lines.push(`  [${module.id}]="${getModulePhase(module)}"`);
+    lines.push(`  ['${module.id}']="${getModulePhase(module)}"`);
   }
   lines.push(')');
   lines.push('');
 
   lines.push('declare -gA ACFS_MODULE_DEPS=(');
   for (const module of orderedModules) {
-    lines.push(`  [${module.id}]="${escapeBash(joinList(module.dependencies))}"`);
+    lines.push(`  ['${module.id}']="${escapeBash(joinList(module.dependencies))}"`);
   }
   lines.push(')');
   lines.push('');
 
   lines.push('declare -gA ACFS_MODULE_FUNC=(');
   for (const module of orderedModules) {
-    lines.push(`  [${module.id}]="${toFunctionName(module.id)}"`);
+    lines.push(`  ['${module.id}']="${toFunctionName(module.id)}"`);
   }
   lines.push(')');
   lines.push('');
@@ -925,21 +925,21 @@ function generateManifestIndex(manifest: Manifest, manifestSha256: string): stri
   lines.push('declare -gA ACFS_MODULE_CATEGORY=(');
   for (const module of orderedModules) {
     const category = module.category ?? getModuleCategory(module.id);
-    lines.push(`  [${module.id}]="${escapeBash(category)}"`);
+    lines.push(`  ['${module.id}']="${escapeBash(category)}"`);
   }
   lines.push(')');
   lines.push('');
 
   lines.push('declare -gA ACFS_MODULE_TAGS=(');
   for (const module of orderedModules) {
-    lines.push(`  [${module.id}]="${escapeBash(joinList(module.tags))}"`);
+    lines.push(`  ['${module.id}']="${escapeBash(joinList(module.tags))}"`);
   }
   lines.push(')');
   lines.push('');
 
   lines.push('declare -gA ACFS_MODULE_DEFAULT=(');
   for (const module of orderedModules) {
-    lines.push(`  [${module.id}]="${module.enabled_by_default ? '1' : '0'}"`);
+    lines.push(`  ['${module.id}']="${module.enabled_by_default ? '1' : '0'}"`);
   }
   lines.push(')');
   lines.push('');
@@ -947,7 +947,7 @@ function generateManifestIndex(manifest: Manifest, manifestSha256: string): stri
   // Module descriptions for progress display (bd-21kh)
   lines.push('declare -gA ACFS_MODULE_DESC=(');
   for (const module of orderedModules) {
-    lines.push(`  [${module.id}]="${escapeBash(module.description || module.id)}"`);
+    lines.push(`  ['${module.id}']="${escapeBash(module.description || module.id)}"`);
   }
   lines.push(')');
   lines.push('');
@@ -956,7 +956,7 @@ function generateManifestIndex(manifest: Manifest, manifestSha256: string): stri
   lines.push('declare -gA ACFS_MODULE_INSTALLED_CHECK=(');
   for (const module of orderedModules) {
     if (module.installed_check?.command) {
-      lines.push(`  [${module.id}]="${escapeBash(module.installed_check.command)}"`);
+      lines.push(`  ['${module.id}']="${escapeBash(module.installed_check.command)}"`);
     }
   }
   lines.push(')');
@@ -966,7 +966,7 @@ function generateManifestIndex(manifest: Manifest, manifestSha256: string): stri
   lines.push('declare -gA ACFS_MODULE_INSTALLED_CHECK_RUN_AS=(');
   for (const module of orderedModules) {
     if (module.installed_check?.run_as) {
-      lines.push(`  [${module.id}]="${escapeBash(module.installed_check.run_as)}"`);
+      lines.push(`  ['${module.id}']="${escapeBash(module.installed_check.run_as)}"`);
     }
   }
   lines.push(')');

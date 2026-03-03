@@ -233,7 +233,7 @@ install_stack_mcp_agent_mail() {
             run_as_target tmux kill-session -t "$tmux_session" 2>/dev/null || true
 
             # Create new detached tmux session and run the installer
-            if run_as_target tmux new-session -d -s "$tmux_session" 'bash' "$tmp_install" '--dir' '${TARGET_HOME:-/home/ubuntu}/mcp_agent_mail' '--yes'; then
+            if run_as_target tmux new-session -d -s "$tmux_session" 'bash' "$tmp_install" '--dir' "${TARGET_HOME:-/home/ubuntu}"'/mcp_agent_mail' '--yes'; then
                     log_success "stack.mcp_agent_mail installing in tmux session '$tmux_session'"
                     log_info "Attach with: tmux attach -t $tmux_session"
                     # Give it a moment to start

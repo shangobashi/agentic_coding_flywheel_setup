@@ -198,6 +198,35 @@ test_fetch_invalid_url() {
     return 1
 }
 
+test_fetch_valid_url_without_base_args() {
+    # Regression test: github_fetch_with_backoff should still work when
+    # ACFS_CURL_BASE_ARGS is unset.
+    local tmp_file status=1 had_base_args=false
+    local -a saved_base_args=()
+    tmp_file=$(mktemp)
+
+    if declare -p ACFS_CURL_BASE_ARGS &>/dev/null; then
+        had_base_args=true
+        saved_base_args=("${ACFS_CURL_BASE_ARGS[@]}")
+        unset ACFS_CURL_BASE_ARGS
+    fi
+
+    if github_fetch_with_backoff "https://raw.githubusercontent.com/Dicklesworthstone/beads_rust/main/README.md" "$tmp_file" "test" 2>/dev/null; then
+        if [[ -s "$tmp_file" ]]; then
+            status=0
+        fi
+    fi
+
+    if [[ "$had_base_args" == "true" ]]; then
+        ACFS_CURL_BASE_ARGS=("${saved_base_args[@]}")
+    else
+        unset ACFS_CURL_BASE_ARGS 2>/dev/null || true
+    fi
+
+    rm -f "$tmp_file"
+    return "$status"
+}
+
 # ============================================================
 # Main
 # ============================================================
@@ -229,6 +258,7 @@ main() {
         echo "--- Network Integration ---"
         run_test "Fetch valid URL" test_fetch_valid_url
         run_test "Fetch invalid URL" test_fetch_invalid_url
+        run_test "Fetch valid URL without ACFS_CURL_BASE_ARGS" test_fetch_valid_url_without_base_args
     else
         echo ""
         echo "(Skipping network tests - SKIP_NETWORK_TESTS=true)"

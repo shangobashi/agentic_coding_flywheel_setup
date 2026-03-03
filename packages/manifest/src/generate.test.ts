@@ -109,7 +109,7 @@ describe('Generated manifest_index.sh content', () => {
     for (const module of manifest.modules) {
       const expectedPhase = module.phase ?? 1;
       // Generator emits associative-array keys as `[module.id]` (unquoted, safe for our IDs).
-      expect(manifestIndexContent).toContain(`[${module.id}]="${expectedPhase}"`);
+      expect(manifestIndexContent).toContain(`['${module.id}']="${expectedPhase}"`);
     }
   });
 
@@ -121,7 +121,7 @@ describe('Generated manifest_index.sh content', () => {
     for (const module of manifest.modules) {
       const deps = module.dependencies?.join(',') ?? '';
       // Generator emits associative-array keys as `[module.id]` (unquoted, safe for our IDs).
-      expect(manifestIndexContent).toContain(`[${module.id}]="${deps}"`);
+      expect(manifestIndexContent).toContain(`['${module.id}']="${deps}"`);
     }
   });
 
@@ -133,7 +133,7 @@ describe('Generated manifest_index.sh content', () => {
     for (const module of manifest.modules) {
       const expectedFunc = `install_${module.id.replace(/\./g, '_')}`;
       // Generator emits associative-array keys as `[module.id]` (unquoted, safe for our IDs).
-      expect(manifestIndexContent).toContain(`[${module.id}]="${expectedFunc}"`);
+      expect(manifestIndexContent).toContain(`['${module.id}']="${expectedFunc}"`);
     }
   });
 
@@ -145,7 +145,7 @@ describe('Generated manifest_index.sh content', () => {
     for (const module of manifest.modules) {
       const category = module.category ?? getModuleCategory(module.id);
       // Generator emits associative-array keys as `[module.id]` (unquoted, safe for our IDs).
-      expect(manifestIndexContent).toContain(`[${module.id}]="${category}"`);
+      expect(manifestIndexContent).toContain(`['${module.id}']="${category}"`);
     }
   });
 
@@ -161,7 +161,7 @@ describe('Generated manifest_index.sh content', () => {
     for (const module of manifest.modules) {
       const expectedDefault = module.enabled_by_default ? '1' : '0';
       // Generator emits associative-array keys as `[module.id]` (unquoted, safe for our IDs).
-      expect(manifestIndexContent).toContain(`[${module.id}]="${expectedDefault}"`);
+      expect(manifestIndexContent).toContain(`['${module.id}']="${expectedDefault}"`);
     }
   });
 
@@ -197,6 +197,19 @@ describe('Generated category scripts exist', () => {
   test('install_all.sh exists', () => {
     const installAllPath = resolve(GENERATED_DIR, 'install_all.sh');
     expect(existsSync(installAllPath)).toBe(true);
+  });
+});
+
+describe('Generated verified installer args', () => {
+  test('stack.mcp_agent_mail keeps TARGET_HOME fallback as an expandable variable', () => {
+    const stackPath = resolve(GENERATED_DIR, 'install_stack.sh');
+    expect(existsSync(stackPath)).toBe(true);
+    const stackContent = readFileSync(stackPath, 'utf-8');
+
+    // Regression guard: this used to be single-quoted as one literal token,
+    // which passed `${TARGET_HOME:-...}` verbatim to the installer.
+    expect(stackContent).not.toContain("'${TARGET_HOME:-/home/ubuntu}/mcp_agent_mail'");
+    expect(stackContent).toContain('"${TARGET_HOME:-/home/ubuntu}"');
   });
 });
 
