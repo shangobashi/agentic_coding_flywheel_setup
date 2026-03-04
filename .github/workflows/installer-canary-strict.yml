@@ -30,16 +30,19 @@ jobs:
         continue-on-error: true
         env:
           ACFS_CHECKSUMS_REF: main
+          INPUT_UBUNTU: ${{ inputs.ubuntu }}
+          INPUT_MODE: ${{ inputs.mode }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           chmod +x ./tests/vm/test_install_ubuntu.sh
 
-          UBUNTU="${{ inputs.ubuntu || 'all' }}"
-          MODE="${{ inputs.mode || 'vibe' }}"
+          UBUNTU="${INPUT_UBUNTU:-all}"
+          MODE="${INPUT_MODE:-vibe}"
 
           rc=0
-          if [[ "${{ github.event_name }}" == "schedule" ]]; then
+          if [[ "$EVENT_NAME" == "schedule" ]]; then
             (set -o pipefail; ./tests/vm/test_install_ubuntu.sh --all --mode "vibe" --strict 2>&1 | tee canary.log) || rc=$?
-          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "$UBUNTU" == "all" ]]; then
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$UBUNTU" == "all" ]]; then
             (set -o pipefail; ./tests/vm/test_install_ubuntu.sh --all --mode "$MODE" --strict 2>&1 | tee canary.log) || rc=$?
           else
             (set -o pipefail; ./tests/vm/test_install_ubuntu.sh --ubuntu "$UBUNTU" --mode "$MODE" --strict 2>&1 | tee canary.log) || rc=$?
