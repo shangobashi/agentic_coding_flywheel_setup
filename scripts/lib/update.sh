@@ -1882,49 +1882,56 @@ update_stack() {
                             bash -c '"$1" --dir "$3/mcp_agent_mail" --yes; printf "%s\n" "$?" > "$2"' \
                             _ "$tmp_install" "$status_file" "$HOME"
 
-                        # Wait for the tmux session to finish (up to 300s / 5 min)
+                        # The installer ends with `exec` into the server process,
+                        # so the status file is never written and the tmux session
+                        # stays alive indefinitely (by design — it runs the server).
+                        # Detect success by polling the health endpoint instead.
                         local waited=0
-                        local max_wait=300
-                        while tmux has-session -t "$tmux_session" 2>/dev/null && [[ $waited -lt $max_wait ]]; do
+                        local max_wait=120
+                        local am_healthy=false
+                        while [[ $waited -lt $max_wait ]]; do
+                            # Check health endpoint (server listens on 8765 by default)
+                            if curl -sf http://127.0.0.1:8765/health/liveness >/dev/null 2>&1; then
+                                am_healthy=true
+                                break
+                            fi
+                            # Also check status file as fallback (in case installer
+                            # exits normally without exec in future versions)
+                            if [[ -f "$status_file" ]] && [[ -s "$status_file" ]]; then
+                                local installer_rc
+                                installer_rc=$(cat "$status_file")
+                                if [[ "$installer_rc" == "0" ]]; then
+                                    am_healthy=true
+                                fi
+                                break
+                            fi
+                            # If tmux session ended and no status file, installer failed
+                            if ! tmux has-session -t "$tmux_session" 2>/dev/null; then
+                                break
+                            fi
                             sleep 2
                             waited=$((waited + 2))
                         done
 
-                        # Check installer exit code from status file
-                        if [[ -f "$status_file" ]] && [[ -s "$status_file" ]]; then
-                            local installer_rc
-                            installer_rc=$(cat "$status_file")
-                            if [[ "$installer_rc" == "0" ]]; then
-                                if [[ "$QUIET" != "true" ]] && [[ "$VERBOSE" != "true" ]]; then
-                                    printf "\033[1A\033[2K  ${GREEN}[ok]${NC} %s\n" "MCP Agent Mail (tmux)"
-                                elif [[ "$QUIET" != "true" ]]; then
-                                    printf "  ${GREEN}[ok]${NC} %s\n" "MCP Agent Mail (tmux)"
-                                fi
-                                log_to_file "Success: MCP Agent Mail (tmux)"
-                                ((SUCCESS_COUNT += 1))
-                            else
-                                if [[ "$QUIET" != "true" ]] && [[ "$VERBOSE" != "true" ]]; then
-                                    printf "\033[1A\033[2K  ${RED}[fail]${NC} %s\n" "MCP Agent Mail (tmux)"
-                                else
-                                    printf "  ${RED}[fail]${NC} %s\n" "MCP Agent Mail (tmux)"
-                                fi
-                                log_to_file "Failed: MCP Agent Mail installer exited with code $installer_rc"
-                                ((FAIL_COUNT += 1))
+                        if [[ "$am_healthy" == "true" ]]; then
+                            if [[ "$QUIET" != "true" ]] && [[ "$VERBOSE" != "true" ]]; then
+                                printf "\033[1A\033[2K  ${GREEN}[ok]${NC} %s\n" "MCP Agent Mail (tmux)"
+                            elif [[ "$QUIET" != "true" ]]; then
+                                printf "  ${GREEN}[ok]${NC} %s\n" "MCP Agent Mail (tmux)"
                             fi
+                            log_to_file "Success: MCP Agent Mail (tmux)"
+                            ((SUCCESS_COUNT += 1))
                         elif [[ $waited -ge $max_wait ]]; then
-                            # Timed out waiting
                             if [[ "$QUIET" != "true" ]]; then
                                 printf "  ${YELLOW}[warn]${NC} %s\n" "MCP Agent Mail (tmux) - timed out after ${max_wait}s"
                             fi
                             log_to_file "Warning: MCP Agent Mail tmux session timed out after ${max_wait}s"
                             ((FAIL_COUNT += 1))
-                            tmux kill-session -t "$tmux_session" 2>/dev/null || true
                         else
-                            # Session ended but no status file - treat as failure
                             if [[ "$QUIET" != "true" ]]; then
-                                printf "  ${RED}[fail]${NC} %s\n" "MCP Agent Mail (tmux) - no exit status"
+                                printf "  ${RED}[fail]${NC} %s\n" "MCP Agent Mail (tmux) - installer failed"
                             fi
-                            log_to_file "Failed: MCP Agent Mail - tmux session ended without writing status"
+                            log_to_file "Failed: MCP Agent Mail - installer exited without starting server"
                             ((FAIL_COUNT += 1))
                         fi
                         rm -f "$status_file"
