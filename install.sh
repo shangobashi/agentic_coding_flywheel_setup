@@ -74,9 +74,9 @@ ACFS_COMMIT_SHA_FULL=""  # Full SHA for pinning resume scripts (40 chars)
 
 # Early curl defaults: enforce HTTPS (including redirects) when supported.
 # This is used before security.sh is available (bootstrap / early library sourcing).
-ACFS_EARLY_CURL_ARGS=(-fsSL)
+ACFS_EARLY_CURL_ARGS=(--connect-timeout 30 --max-time 300 -fsSL)
 if command -v curl &>/dev/null && curl --help all 2>/dev/null | grep -q -- '--proto'; then
-    ACFS_EARLY_CURL_ARGS=(--proto '=https' --proto-redir '=https' -fsSL)
+    ACFS_EARLY_CURL_ARGS=(--proto '=https' --proto-redir '=https' --connect-timeout 30 --max-time 300 -fsSL)
 fi
 # Note: ACFS_HOME is set after TARGET_HOME is determined
 ACFS_LOG_DIR="/var/log/acfs"
@@ -2365,7 +2365,7 @@ acfs_fetch_fresh_checksums_via_api() {
 
     # Use application/vnd.github.raw to get raw file content directly (no base64)
     local content
-    content="$(curl -fsSL \
+    content="$(curl --connect-timeout 30 --max-time 300 -fsSL \
         -H "Accept: application/vnd.github.raw" \
         -H "X-GitHub-Api-Version: 2022-11-28" \
         "$api_url" 2>/dev/null)" || {

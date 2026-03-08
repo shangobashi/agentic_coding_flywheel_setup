@@ -1481,9 +1481,9 @@ supabase_release_update_script() {
     cat <<'EOF'
 set -euo pipefail
 
-CURL_ARGS=(-fsSL)
+CURL_ARGS=(--connect-timeout 30 --max-time 300 -fsSL)
 if command -v curl &>/dev/null && curl --help all 2>/dev/null | grep -q -- '--proto'; then
-  CURL_ARGS=(--proto '=https' --proto-redir '=https' -fsSL)
+  CURL_ARGS=(--proto '=https' --proto-redir '=https' --connect-timeout 30 --max-time 300 -fsSL)
 fi
 
 arch=""
