@@ -781,8 +781,8 @@ update_run_verified_installer() {
     fi
 
     (
-        set -o pipefail
-        bash <(verify_checksum "$url" "$expected_sha256" "$tool") "$@" </dev/null
+        script=$(verify_checksum "$url" "$expected_sha256" "$tool") || exit $?
+        bash -c "$script" bash "$@" </dev/null
     )
 }
 
