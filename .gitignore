@@ -167,3 +167,6 @@ gemini.mcp.json
 .beads/*.pre_repair_*
 .beads/*.repair_candidate_*
 .beads/*.bak-corrupt
+
+# Ephemeral stderr capture files
+/err
