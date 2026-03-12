@@ -1993,7 +1993,7 @@ update_stack() {
     run_cmd "SLB" update_run_verified_installer slb
 
     # RU (Repo Updater) - always install/update
-    run_cmd "RU" update_run_verified_installer ru --easy-mode
+    run_cmd "RU" update_run_verified_installer ru
 
     # DCG (Destructive Command Guard) - always install/update
     run_cmd "DCG" update_run_verified_installer dcg --easy-mode

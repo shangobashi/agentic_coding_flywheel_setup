@@ -425,8 +425,7 @@ install_ru() {
 
     log_detail "Installing ${STACK_NAMES[$tool]}..."
 
-    # RU uses --easy-mode
-    local -a args=(--easy-mode)
+    local -a args=()
     if ! _stack_is_interactive; then
         args+=(--yes)
     fi

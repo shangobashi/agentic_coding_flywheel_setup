@@ -3,7 +3,7 @@
 #
 # Tests:
 #   - 7 First-class flywheel tools: br, ms, rch, wa, brenner, dcg, ru
-#   - 4 Newly integrated stack tools: fsfs, sbh, casr, dsr
+#   - 6 Newly integrated stack tools: fsfs, sbh, casr, dsr, asb, pcr
 #   - 9 Utility tools: tru, rust_proxy, rano, xf, mdwb, pt, aadc, s2p, caut
 #   - Integration: acfs doctor, flywheel.ts, br primary command
 #
@@ -167,11 +167,18 @@ test_flywheel_tools() {
     # beads_rust (br) - REQUIRED
     log "INFO" "br" "Testing beads_rust (br)..."
     if test_tool_basic "beads_rust" "br" "true"; then
-        # Additional br tests
-        if br list --json 2>/dev/null | head -1 | command grep -qE '^\['; then
-            pass "br_list" "br list --json returns valid JSON"
+        # Verify core workflow in an isolated workspace so repo-local DB corruption
+        # does not create false failures in installer verification.
+        local br_probe_dir
+        br_probe_dir=$(mktemp -d "${TMPDIR:-/tmp}/acfs_br_probe.XXXXXX")
+        if (
+            cd "$br_probe_dir" &&
+            br init >/dev/null 2>&1 &&
+            br list --json 2>/dev/null | head -1 | command grep -qE '^\['
+        ); then
+            pass "br_list" "br init + br list --json succeeds in isolated workspace ($br_probe_dir)"
         else
-            fail "br_list" "br list --json failed"
+            fail "br_list" "br init + br list --json failed in isolated workspace ($br_probe_dir)"
         fi
     fi
 
@@ -199,8 +206,15 @@ test_flywheel_tools() {
     # dcg (Destructive Command Guard) - REQUIRED
     log "INFO" "dcg" "Testing Destructive Command Guard (dcg)..."
     if test_tool_basic "destructive_command_guard" "dcg" "true"; then
-        # Additional dcg tests
-        if dcg doctor 2>&1 | command grep -qiE 'ok|pass|configured|healthy'; then
+        # dcg doctor is more reliable with a pseudo-TTY.
+        local dcg_doctor_output=""
+        if command -v script >/dev/null 2>&1; then
+            dcg_doctor_output=$(script -q -c 'dcg doctor' /dev/null 2>/dev/null || true)
+        else
+            dcg_doctor_output=$(dcg doctor 2>&1 || true)
+        fi
+
+        if echo "$dcg_doctor_output" | command grep -qiE 'all checks passed|ok|pass|configured|healthy'; then
             pass "dcg_doctor" "dcg doctor passes health check"
         else
             skip "dcg_doctor" "dcg doctor output unclear (may need configuration)"
@@ -218,12 +232,12 @@ test_flywheel_tools() {
 }
 
 # ============================================================
-# Additional Stack Tools (4)
+# Additional Stack Tools (6)
 # ============================================================
 
 test_additional_stack_tools() {
     log "INFO" "SECTION" "========================================"
-    log "INFO" "SECTION" "ADDITIONAL STACK TOOLS (4)"
+    log "INFO" "SECTION" "ADDITIONAL STACK TOOLS (6)"
     log "INFO" "SECTION" "========================================"
 
     # frankensearch (fsfs)
@@ -259,6 +273,22 @@ test_additional_stack_tools() {
             "dsr doctor" \
             "dsr version" \
             "dsr --help"
+    fi
+
+    # agent_settings_backup (asb)
+    log "INFO" "asb" "Testing agent_settings_backup (asb)..."
+    if test_tool_basic "agent_settings_backup" "asb" "false"; then
+        test_tool_probe "asb_probe" "asb" "asb operational probe" "false" \
+            "asb --help" \
+            "asb status"
+    fi
+
+    # post_compact_reminder (pcr)
+    log "INFO" "pcr" "Testing post_compact_reminder (pcr)..."
+    if test_tool_basic "post_compact_reminder" "pcr" "false"; then
+        test_tool_probe "pcr_probe" "pcr" "pcr operational probe" "false" \
+            "pcr --help" \
+            "pcr status"
     fi
 }
 
@@ -448,7 +478,7 @@ write_json_results() {
   },
   "categories": {
     "flywheel_tools": 7,
-    "additional_stack_tools": 4,
+    "additional_stack_tools": 6,
     "utility_tools": 9,
     "integration_tests": 5
   },
