@@ -498,7 +498,7 @@ export const manifestTldrTools: ManifestTldrTool[] = [
     id: "stack-pcr",
     moduleId: "stack.pcr",
     displayName: "Post-Compact Reminder",
-    shortName: "pcr",
+    shortName: "PCR",
     tagline: "Stop Claude from forgetting project rules after compaction",
     tldrSnippet: "Post-compaction reminder hook for Claude Code that forces an AGENTS.md re-read",
     icon: "shield-alert",

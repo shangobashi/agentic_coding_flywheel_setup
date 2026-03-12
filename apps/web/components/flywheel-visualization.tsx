@@ -30,6 +30,19 @@ import {
   FileText,
   ListTodo,
   ShieldAlert,
+  HardDrive,
+  Repeat,
+  Package,
+  Save,
+  Bell,
+  Image,
+  Minimize2,
+  Wifi,
+  Globe,
+  FileCode,
+  Network,
+  BoxSelect,
+  BarChart3,
 } from "lucide-react";
 import { flywheelTools, flywheelDescription, getAllConnections, type FlywheelTool } from "@/lib/flywheel";
 import { Button } from "@/components/ui/button";
@@ -61,6 +74,19 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   ShieldAlert,
   Sparkles,
   Zap,
+  HardDrive,
+  Repeat,
+  Package,
+  Save,
+  Bell,
+  Image,
+  Minimize2,
+  Wifi,
+  Globe,
+  FileCode,
+  Network,
+  BoxSelect,
+  BarChart3,
 };
 
 // =============================================================================

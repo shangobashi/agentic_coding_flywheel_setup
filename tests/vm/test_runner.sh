@@ -26,14 +26,15 @@ bash /repo/tests/vm/selection_checks.sh
 
 cd /repo
 
-STRICT_FLAG=""
+TEST_MODE="${ACFS_TEST_MODE:-vibe}"
+INSTALL_ARGS=(--yes --skip-ubuntu-upgrade --mode "${TEST_MODE}")
 if [[ "${ACFS_TEST_STRICT:-false}" == "true" ]]; then
-    STRICT_FLAG="--strict"
+    INSTALL_ARGS+=(--strict)
 fi
 
 # PHASE 1: Fresh Install
-log "PHASE 1: Fresh Install (mode=${ACFS_TEST_MODE})"
-if bash install.sh --yes --skip-ubuntu-upgrade --mode "${ACFS_TEST_MODE}" ${STRICT_FLAG} > "${ARTIFACTS_DIR}/install.log" 2>&1; then
+log "PHASE 1: Fresh Install (mode=${TEST_MODE})"
+if bash install.sh "${INSTALL_ARGS[@]}" > "${ARTIFACTS_DIR}/install.log" 2>&1; then
     log "Install successful"
 else
     log "Install failed! Last 50 lines:"
@@ -72,7 +73,7 @@ run_check "ru" "zsh -ic 'ru --version >/dev/null'" || failed_checks=$((failed_ch
 run_check "dcg" "zsh -ic 'dcg --version >/dev/null'" || failed_checks=$((failed_checks + 1))
 
 # Check DCG hook
-run_check "dcg_hook" "zsh -ic 'set -o pipefail; dcg doctor --format json 2>/dev/null | jq -e \".hook_registered == true\" >/dev/null || dcg doctor 2>/dev/null | grep -qi \"hook wiring.*OK\"'" || failed_checks=$((failed_checks + 1))
+run_check "dcg_hook" "zsh -ic 'set -o pipefail; dcg doctor --format json 2>/dev/null | jq -e \".hook_registered == true\" >/dev/null || (command -v script >/dev/null 2>&1 && tty_output=\$(script -q -c \"dcg doctor\" /dev/null 2>/dev/null || true) && printf \"%s\" \"\$tty_output\" | grep -qi \"hook wiring.*OK\")'" || failed_checks=$((failed_checks + 1))
 run_check "dcg_block" "zsh -ic 'dcg test \"git reset --hard\" | grep -Eqi \"deny|block\"'" || failed_checks=$((failed_checks + 1))
 run_check "dcg_allow" "zsh -ic 'dcg test \"git status\" | grep -Eqi \"allow\"'" || failed_checks=$((failed_checks + 1))
 
@@ -157,7 +158,7 @@ fi
 
 # PHASE 3: Idempotency
 log "PHASE 3: Idempotency Check"
-if bash install.sh --yes --skip-ubuntu-upgrade --mode "${ACFS_TEST_MODE}" ${STRICT_FLAG} > "${ARTIFACTS_DIR}/idempotency.log" 2>&1; then
+if bash install.sh "${INSTALL_ARGS[@]}" > "${ARTIFACTS_DIR}/idempotency.log" 2>&1; then
     log "Idempotency run successful"
 else
     log "Idempotency run failed! Last 50 lines:"

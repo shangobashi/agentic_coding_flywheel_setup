@@ -97,7 +97,7 @@ test_tool_basic() {
     local version_output
     if version_output=$("$binary" --version 2>&1); then
         pass "${binary}_version" "$binary version: ${version_output:0:100}"
-    elif version_output=$("$binary" --help 2>&1 | head -1); then
+    elif version_output=$("$binary" --help 2>&1); then
         pass "${binary}_version" "$binary help works: ${version_output:0:100}"
     else
         if [[ "$required" == "true" ]]; then
@@ -132,9 +132,9 @@ test_tool_probe() {
     local output=""
     for cmd in "$@"; do
         if command -v timeout >/dev/null 2>&1; then
-            output=$(timeout "$probe_timeout" env PATH="$PATH" bash -lc "$cmd" 2>&1)
+            output=$(timeout "$probe_timeout" env PATH="$PATH" bash -c "$cmd" 2>&1)
         else
-            output=$(env PATH="$PATH" bash -lc "$cmd" 2>&1)
+            output=$(env PATH="$PATH" bash -c "$cmd" 2>&1)
         fi
 
         if [[ $? -eq 0 ]]; then
@@ -171,6 +171,10 @@ test_flywheel_tools() {
         # does not create false failures in installer verification.
         local br_probe_dir
         br_probe_dir=$(mktemp -d "${TMPDIR:-/tmp}/acfs_br_probe.XXXXXX")
+        if [[ -z "$br_probe_dir" || ! -d "$br_probe_dir" ]]; then
+            fail "br_list" "mktemp failed while creating isolated br probe workspace"
+            return 1
+        fi
         if (
             cd "$br_probe_dir" &&
             br init >/dev/null 2>&1 &&
@@ -379,29 +383,25 @@ test_integration() {
             doctor_exit=$?
         fi
 
-        if [[ $doctor_exit -eq 0 ]] || echo "$doctor_output" | command grep -qi "all checks passed\|healthy\|ok"; then
+        if [[ $doctor_exit -eq 0 ]]; then
             pass "doctor_runs" "acfs doctor completed without fatal errors"
         else
             fail "doctor_runs" "acfs doctor failed (exit=$doctor_exit)"
         fi
 
         # Check for DCG in doctor output
-        if echo "$doctor_output" | command grep -qi "dcg\|destructive.command"; then
+        if echo "$doctor_output" | command grep -qiE 'dcg|destructive[[:space:]-]+command'; then
             pass "doctor_dcg_check" "acfs doctor includes DCG health check"
         else
             skip "doctor_dcg_check" "DCG check not visible in doctor output"
         fi
 
-        # CRITICAL: Verify NO git_safety_guard warnings
-        if echo "$doctor_output" | command grep -qi "git_safety_guard"; then
-            fail "doctor_no_git_safety_guard" "LEGACY: git_safety_guard still referenced in doctor"
-        else
-            pass "doctor_no_git_safety_guard" "No legacy git_safety_guard references found"
-        fi
+        # Legacy git_safety_guard cleanup is validated in the dedicated
+        # test_git_safety_guard_removal.sh suite. acfs doctor may still
+        # mention Git safety guard status in its current output.
     else
         skip "doctor_runs" "acfs command not found"
         skip "doctor_dcg_check" "acfs command not found"
-        skip "doctor_no_git_safety_guard" "acfs command not found"
     fi
 
     # Test 2: br is the primary command (bd alias was removed)
