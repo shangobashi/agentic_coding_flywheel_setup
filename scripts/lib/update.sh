@@ -764,8 +764,13 @@ update_require_security() {
 
 # shellcheck disable=SC2317,SC2329  # invoked indirectly via run_cmd()
 update_run_verified_installer() {
+    if [[ $# -lt 1 ]]; then
+        echo "update_run_verified_installer requires a tool name" >&2
+        return 1
+    fi
+
     local tool="$1"
-    shift || true
+    shift
 
     if ! update_require_security; then
         echo "Security verification unavailable (missing $SCRIPT_DIR/security.sh or checksums.yaml)" >&2

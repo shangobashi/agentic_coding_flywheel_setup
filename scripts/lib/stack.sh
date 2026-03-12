@@ -145,11 +145,20 @@ _stack_require_security() {
 
 # Run an installer script as target user with checksum verification.
 # Some upstream installers use environment variables instead of CLI flags for
-# non-interactive mode, so allow an optional bash-side env prefix.
-_stack_run_verified_installer() {
+# non-interactive mode, so allow one optional inline env assignment like VAR=value.
+_stack_run_verified_installer_with_env() {
+    if [[ $# -lt 1 ]]; then
+        log_warn "_stack_run_verified_installer_with_env requires at least a tool name"
+        return 1
+    fi
+
     local tool="$1"
-    local bash_env_prefix="${2:-}"
-    shift 2 || true
+    local bash_env_assignment="${2:-}"
+    if [[ $# -ge 2 ]]; then
+        shift 2
+    else
+        set --
+    fi
 
     if ! _stack_require_security; then
         return 1
@@ -167,6 +176,10 @@ _stack_run_verified_installer() {
         log_warn "No checksum recorded for $tool; refusing to run unverified installer"
         return 1
     fi
+    if [[ -n "$bash_env_assignment" ]] && [[ ! "$bash_env_assignment" =~ ^[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]+$ ]]; then
+        log_warn "Invalid inline env assignment for $tool installer: $bash_env_assignment"
+        return 1
+    fi
 
     local -a quoted_args=()
     local arg
@@ -175,8 +188,8 @@ _stack_run_verified_installer() {
     done
 
     local cmd="source '$STACK_SCRIPT_DIR/security.sh'; verify_checksum '$url' '$expected_sha256' '$tool' | "
-    if [[ -n "$bash_env_prefix" ]]; then
-        cmd+="$bash_env_prefix "
+    if [[ -n "$bash_env_assignment" ]]; then
+        cmd+="$bash_env_assignment "
     fi
     cmd+="bash -s --"
     if [[ ${#quoted_args[@]} -gt 0 ]]; then
@@ -186,10 +199,34 @@ _stack_run_verified_installer() {
     _stack_run_as_user "$cmd"
 }
 
-_stack_run_installer() {
+_stack_run_verified_installer() {
+    if [[ $# -lt 1 ]]; then
+        log_warn "_stack_run_verified_installer requires a tool name"
+        return 1
+    fi
+
     local tool="$1"
-    shift || true
-    _stack_run_verified_installer "$tool" "" "$@"
+    if [[ $# -ge 1 ]]; then
+        shift
+    else
+        set --
+    fi
+    _stack_run_verified_installer_with_env "$tool" "" "$@"
+}
+
+_stack_run_installer() {
+    if [[ $# -lt 1 ]]; then
+        log_warn "_stack_run_installer requires a tool name"
+        return 1
+    fi
+
+    local tool="$1"
+    if [[ $# -ge 1 ]]; then
+        shift
+    else
+        set --
+    fi
+    _stack_run_verified_installer "$tool" "$@"
 }
 
 # Check if a stack tool is installed
@@ -438,15 +475,8 @@ install_ru() {
 
     log_detail "Installing ${STACK_NAMES[$tool]}..."
 
-    # RU uses environment variables, not CLI flags, for non-interactive mode.
-    if _stack_is_interactive; then
-        if _stack_run_installer "$tool"; then
-            if _stack_is_installed "$tool"; then
-                log_success "${STACK_NAMES[$tool]} installed"
-                return 0
-            fi
-        fi
-    elif _stack_run_verified_installer "$tool" "RU_NON_INTERACTIVE=1"; then
+    # RU uses an environment variable, not CLI flags, for unattended install.
+    if _stack_run_verified_installer_with_env "$tool" "RU_NON_INTERACTIVE=1"; then
         if _stack_is_installed "$tool"; then
             log_success "${STACK_NAMES[$tool]} installed"
             return 0

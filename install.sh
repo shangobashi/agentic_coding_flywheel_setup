@@ -2534,6 +2534,11 @@ acfs_load_upstream_checksums() {
 # If still mismatched after fresh fetch, we fail closed (never execute unverified scripts).
 
 acfs_run_verified_upstream_script_as_target_with_env() {
+    if [[ $# -lt 2 ]]; then
+        log_error "acfs_run_verified_upstream_script_as_target_with_env requires a tool and runner"
+        return 1
+    fi
+
     local tool="$1"
     local runner="$2"
     local runner_env_assignment="${3:-}"
@@ -2634,6 +2639,11 @@ acfs_run_verified_upstream_script_as_target_with_env() {
 }
 
 acfs_run_verified_upstream_script_as_target() {
+    if [[ $# -lt 2 ]]; then
+        log_error "acfs_run_verified_upstream_script_as_target requires a tool and runner"
+        return 1
+    fi
+
     local tool="$1"
     local runner="$2"
     if [[ $# -ge 2 ]]; then

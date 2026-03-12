@@ -175,10 +175,12 @@ test_flywheel_tools() {
             fail "br_list" "mktemp failed while creating isolated br probe workspace"
             return 1
         fi
+        local br_list_output=""
         if (
             cd "$br_probe_dir" &&
             br init >/dev/null 2>&1 &&
-            br list --json 2>/dev/null | head -1 | command grep -qE '^\['
+            br_list_output=$(br list --json 2>/dev/null) &&
+            [[ "$br_list_output" =~ ^[[:space:]]*\[ ]]
         ); then
             pass "br_list" "br init + br list --json succeeds in isolated workspace ($br_probe_dir)"
         else
@@ -211,14 +213,15 @@ test_flywheel_tools() {
     log "INFO" "dcg" "Testing Destructive Command Guard (dcg)..."
     if test_tool_basic "destructive_command_guard" "dcg" "true"; then
         # dcg doctor is more reliable with a pseudo-TTY.
-        local dcg_doctor_output=""
+        local dcg_doctor_exit=0
         if command -v script >/dev/null 2>&1; then
-            dcg_doctor_output=$(script -q -c 'dcg doctor' /dev/null 2>/dev/null || true)
+            script -e -q -c 'dcg doctor' /dev/null >/dev/null 2>&1
         else
-            dcg_doctor_output=$(dcg doctor 2>&1 || true)
+            dcg doctor >/dev/null 2>&1
         fi
+        dcg_doctor_exit=$?
 
-        if echo "$dcg_doctor_output" | command grep -qiE 'all checks passed|ok|pass|configured|healthy'; then
+        if [[ $dcg_doctor_exit -eq 0 ]]; then
             pass "dcg_doctor" "dcg doctor passes health check"
         else
             skip "dcg_doctor" "dcg doctor output unclear (may need configuration)"
@@ -443,7 +446,8 @@ test_integration() {
     # Test 4: bv (beads_viewer) works
     log "INFO" "bv" "Testing beads_viewer (bv)..."
     if command -v bv >/dev/null 2>&1; then
-        if bv --robot-triage 2>/dev/null | head -1 | command grep -q '^{'; then
+        local bv_output=""
+        if bv_output=$(bv --robot-triage 2>/dev/null) && [[ "$bv_output" =~ ^[[:space:]]*\{ ]]; then
             pass "bv_triage" "bv --robot-triage returns valid JSON"
         else
             fail "bv_triage" "bv --robot-triage failed"
@@ -457,7 +461,8 @@ test_integration() {
     for agent in claude codex gemini; do
         if command -v "$agent" >/dev/null 2>&1; then
             local ver
-            ver=$("$agent" --version 2>&1 | head -1) || ver="unknown"
+            ver=$("$agent" --version 2>&1) || ver="unknown"
+            ver="${ver%%$'\n'*}"
             pass "${agent}_binary" "$agent installed: $ver"
         else
             skip "${agent}_binary" "$agent not installed (may be optional)"
