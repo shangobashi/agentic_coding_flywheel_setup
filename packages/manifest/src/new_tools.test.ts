@@ -33,9 +33,6 @@ const NEW_TOOLS = [
   { moduleId: 'stack.pcr', cli: 'pcr', name: 'Post-Compact Reminder' },
 ] as const;
 
-// Tools that use git-clone install instead of verified_installer
-const NO_VERIFIED_INSTALLER = new Set(['stack.doodlestein_self_releaser']);
-
 // Tools whose installed_check command doesn't contain the CLI name directly
 const CUSTOM_INSTALLED_CHECK: Record<string, string> = {
   'stack.pcr': 'claude-post-compact-reminder',
@@ -84,17 +81,11 @@ describe('New tool manifest entries', () => {
         expect(mod.verify.length).toBeGreaterThan(0);
       });
 
-      test('has verified_installer or install steps', () => {
+      test('has verified_installer', () => {
         const mod = manifest.modules.find((m) => m.id === tool.moduleId)!;
-        if (NO_VERIFIED_INSTALLER.has(tool.moduleId)) {
-          // DSR uses git-clone install instead of verified_installer
-          expect(mod.install).toBeInstanceOf(Array);
-          expect(mod.install!.length).toBeGreaterThan(0);
-        } else {
-          expect(mod.verified_installer).toBeDefined();
-          expect(mod.verified_installer!.tool).toBeTruthy();
-          expect(['bash', 'sh']).toContain(mod.verified_installer!.runner);
-        }
+        expect(mod.verified_installer).toBeDefined();
+        expect(mod.verified_installer!.tool).toBeTruthy();
+        expect(['bash', 'sh']).toContain(mod.verified_installer!.runner);
       });
 
       test('has web metadata', () => {
