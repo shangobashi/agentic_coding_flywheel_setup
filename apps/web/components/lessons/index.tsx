@@ -39,6 +39,13 @@ import { CasrLesson } from "./casr-lesson";
 import { DsrLesson } from "./dsr-lesson";
 import { AsbLesson } from "./asb-lesson";
 import { PcrLesson } from "./pcr-lesson";
+import { CsctfLesson } from "./csctf-lesson";
+import { TruLesson } from "./tru-lesson";
+import { MdwbLesson } from "./mdwb-lesson";
+import { RanoLesson } from "./rano-lesson";
+import { CautLesson } from "./caut-lesson";
+import { AadcLesson } from "./aadc-lesson";
+import { RustProxyLesson } from "./rust-proxy-lesson";
 
 // Render the lesson content for a given slug.
 // This intentionally uses a static switch so ESLint can guarantee components are not created during render.
@@ -122,6 +129,20 @@ export function renderLessonComponent(slug: string): React.ReactNode | null {
       return <AsbLesson />;
     case "pcr":
       return <PcrLesson />;
+    case "csctf":
+      return <CsctfLesson />;
+    case "tru":
+      return <TruLesson />;
+    case "mdwb":
+      return <MdwbLesson />;
+    case "rano":
+      return <RanoLesson />;
+    case "caut":
+      return <CautLesson />;
+    case "aadc":
+      return <AadcLesson />;
+    case "rust-proxy":
+      return <RustProxyLesson />;
     default:
       return null;
   }
@@ -168,4 +189,11 @@ export {
   DsrLesson,
   AsbLesson,
   PcrLesson,
+  CsctfLesson,
+  TruLesson,
+  MdwbLesson,
+  RanoLesson,
+  CautLesson,
+  AadcLesson,
+  RustProxyLesson,
 };

@@ -709,7 +709,25 @@ modules:
         WRAPPER
         chmod +x ~/.local/bin/gemini
       # Apply patches (EBADF crash fix, rate-limit retry 3→1000, quota retry)
-      - curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/misc_coding_agent_tips_and_scripts/main/fix-gemini-cli-ebadf-crash.sh | bash
+      - |
+        security_lib="${ACFS_LIB_DIR:-$HOME/.acfs/scripts/lib}/security.sh"
+        if [[ ! -f "$security_lib" ]]; then
+          echo "agents.gemini: security library not found at $security_lib" >&2
+          exit 1
+        fi
+        if [[ -n "${ACFS_CHECKSUMS_YAML:-}" ]]; then
+          export CHECKSUMS_FILE="$ACFS_CHECKSUMS_YAML"
+        fi
+        # shellcheck disable=SC1090,SC1091
+        source "$security_lib"
+        load_checksums
+        patch_url="${KNOWN_INSTALLERS[gemini_patch]:-}"
+        patch_sha256="$(get_checksum gemini_patch)"
+        if [[ -z "$patch_url" || -z "$patch_sha256" ]]; then
+          echo "agents.gemini: missing verified installer metadata for gemini_patch" >&2
+          exit 1
+        fi
+        verify_checksum "$patch_url" "$patch_sha256" "gemini_patch" | bash
     verify:
       - ~/.local/bin/gemini --version || ~/.local/bin/gemini --help
 
@@ -726,9 +744,10 @@ modules:
     installed_check:
       run_as: target_user
       command: "command -v opencode"
-    install:
-      # Install OpenCode via official installer
-      - curl -fsSL https://opencode.ai/install | bash
+    verified_installer:
+      tool: opencode
+      runner: bash
+    install: []
     verify:
       - opencode --version || opencode --help
     notes:
@@ -1268,6 +1287,7 @@ modules:
       language: "Rust"
       stars: 45
       cli_name: "pt"
+      command_example: "pt --robot --top 10"
       lesson_slug: "pt"
     dependencies:
       - lang.rust
@@ -1277,6 +1297,7 @@ modules:
     verified_installer:
       tool: pt
       runner: bash
+      url: "https://raw.githubusercontent.com/Dicklesworthstone/process_triage/main/install.sh"
     install: []
     verify:
       - pt --help
@@ -1686,6 +1707,7 @@ modules:
     verified_installer:
       tool: ru
       runner: bash
+      url: "https://raw.githubusercontent.com/Dicklesworthstone/repo_updater/main/install.sh"
       env: ["RU_NON_INTERACTIVE=1"]
     install: []
     verify:
@@ -1762,6 +1784,7 @@ modules:
       language: "Rust"
       stars: 35
       cli_name: "rch"
+      command_example: "rch status"
       lesson_slug: "rch"
     dependencies:
       - lang.rust
@@ -1897,6 +1920,7 @@ modules:
       language: "Rust"
       stars: 30
       cli_name: "fsfs"
+      command_example: "fsfs search \"query\""
       lesson_slug: "fsfs"
     dependencies:
       - lang.rust
@@ -1907,6 +1931,7 @@ modules:
       tool: fsfs
       runner: bash
       args: ["--easy-mode"]
+      url: "https://raw.githubusercontent.com/Dicklesworthstone/frankensearch/main/install.sh"
     install: []
     verify:
       - fsfs version || fsfs --help
@@ -1939,6 +1964,7 @@ modules:
       language: "Rust"
       stars: 20
       cli_name: "sbh"
+      command_example: "sbh status"
       lesson_slug: "sbh"
     dependencies:
       - lang.rust
@@ -1981,6 +2007,7 @@ modules:
       language: "Rust"
       stars: 25
       cli_name: "casr"
+      command_example: "casr export --from claude"
       lesson_slug: "casr"
     dependencies:
       - lang.rust
@@ -1990,6 +2017,7 @@ modules:
     verified_installer:
       tool: casr
       runner: bash
+      url: "https://raw.githubusercontent.com/Dicklesworthstone/cross_agent_session_resumer/main/install.sh"
     install: []
     verify:
       - casr providers || casr --help
@@ -2022,6 +2050,7 @@ modules:
       language: "Bash"
       stars: 15
       cli_name: "dsr"
+      command_example: "dsr release"
       lesson_slug: "dsr"
     dependencies:
       - cli.modern   # for gh, docker
@@ -2065,6 +2094,7 @@ modules:
       language: "Bash"
       stars: 10
       cli_name: "asb"
+      command_example: "asb backup"
       lesson_slug: "asb"
     dependencies:
       - base.system
@@ -2074,6 +2104,7 @@ modules:
     verified_installer:
       tool: asb
       runner: bash
+      url: "https://raw.githubusercontent.com/Dicklesworthstone/agent_settings_backup_script/main/install.sh"
     install: []
     verify:
       - asb version || asb help
@@ -2106,6 +2137,7 @@ modules:
       language: "Bash"
       stars: 40
       cli_name: "pcr"
+      command_example: "claude-post-compact-reminder --check"
       lesson_slug: "pcr"
     dependencies:
       - agents.claude
@@ -2200,6 +2232,25 @@ modules:
     optional: true
     enabled_by_default: true
     tags: [utility]
+    web:
+      display_name: "Chat Shared Conversation to File"
+      short_name: "CSCTF"
+      tagline: "Convert AI chat share links to Markdown and HTML"
+      icon: "file-text"
+      color: "#8B5CF6"
+      href: "https://github.com/Dicklesworthstone/csctf"
+      features:
+        - "Multi-provider support (ChatGPT, Claude, Gemini, Grok)"
+        - "Dual Markdown + HTML output"
+        - "Code block preservation"
+        - "Batch URL processing"
+      tech_stack: ["Rust"]
+      use_cases:
+        - "Archiving important AI conversations"
+        - "Preserving code solutions from chat"
+        - "Building a local knowledge base from AI interactions"
+      language: "Rust"
+      cli_name: "csctf"
     dependencies:
       - base.system   # csctf provides prebuilt binaries; installer handles deps
     installed_check:
@@ -2261,6 +2312,25 @@ modules:
     optional: true
     enabled_by_default: true
     tags: [utility, llm]
+    web:
+      display_name: "Token-Optimized Notation"
+      short_name: "TRU"
+      tagline: "Compress source code for maximum LLM context efficiency"
+      icon: "minimize-2"
+      color: "#06B6D4"
+      href: "https://github.com/Dicklesworthstone/toon_rust"
+      features:
+        - "40-70% token count reduction"
+        - "Multi-language support"
+        - "Token count statistics"
+        - "Reversible compression"
+      tech_stack: ["Rust"]
+      use_cases:
+        - "Fitting more code context into LLM requests"
+        - "Reducing API costs for large codebases"
+        - "Preparing code for context-limited models"
+      language: "Rust"
+      cli_name: "tru"
     dependencies:
       - lang.rust
     installed_check:
@@ -2282,6 +2352,25 @@ modules:
     optional: true
     enabled_by_default: false
     tags: [utility, network, debug]
+    web:
+      display_name: "Network Observer"
+      short_name: "RANO"
+      tagline: "Monitor AI CLI network traffic for debugging and analysis"
+      icon: "network"
+      color: "#F59E0B"
+      href: "https://github.com/Dicklesworthstone/rano"
+      features:
+        - "Transparent HTTP proxy interception"
+        - "Provider-aware log parsing"
+        - "Token and cost tracking"
+        - "Real-time traffic monitoring"
+      tech_stack: ["Rust"]
+      use_cases:
+        - "Debugging unexpected agent behavior"
+        - "Tracking API token consumption"
+        - "Analyzing prompt efficiency"
+      language: "Rust"
+      cli_name: "rano"
     dependencies:
       - lang.rust
     installed_check:
@@ -2303,6 +2392,25 @@ modules:
     optional: true
     enabled_by_default: true
     tags: [utility, web, llm]
+    web:
+      display_name: "Markdown Web Browser"
+      short_name: "MDWB"
+      tagline: "Convert web pages to clean Markdown for AI consumption"
+      icon: "globe"
+      color: "#10B981"
+      href: "https://github.com/Dicklesworthstone/markdown_web_browser"
+      features:
+        - "Clean content extraction"
+        - "Code block preservation"
+        - "Link handling"
+        - "Pipe-friendly output"
+      tech_stack: ["Rust"]
+      use_cases:
+        - "Feeding documentation to AI agents"
+        - "Archiving web content locally"
+        - "Building LLM-ready research corpora"
+      language: "Rust"
+      cli_name: "mdwb"
     dependencies:
       - lang.rust
     installed_check:
@@ -2365,6 +2473,25 @@ modules:
     optional: true
     enabled_by_default: false
     tags: [utility, network, debug]
+    web:
+      display_name: "Rust Proxy"
+      short_name: "RP"
+      tagline: "Transparent proxy routing for network traffic debugging"
+      icon: "shield"
+      color: "#6366F1"
+      href: "https://github.com/Dicklesworthstone/rust_proxy"
+      features:
+        - "Transparent HTTP/HTTPS proxying"
+        - "Request/response logging"
+        - "Latency measurement"
+        - "Header inspection"
+      tech_stack: ["Rust"]
+      use_cases:
+        - "Debugging API communication issues"
+        - "Measuring request latency"
+        - "Inspecting headers and payloads"
+      language: "Rust"
+      cli_name: "rust_proxy"
     dependencies:
       - lang.rust
     installed_check:
@@ -2390,6 +2517,25 @@ modules:
     optional: true
     enabled_by_default: false
     tags: [utility, ascii]
+    web:
+      display_name: "ASCII Art Diagram Corrector"
+      short_name: "AADC"
+      tagline: "Fix malformed ASCII diagrams from AI output"
+      icon: "align-left"
+      color: "#EC4899"
+      href: "https://github.com/Dicklesworthstone/aadc"
+      features:
+        - "Auto-repair box alignment"
+        - "Connector line fixing"
+        - "Before/after diff preview"
+        - "Clipboard integration"
+      tech_stack: ["Rust"]
+      use_cases:
+        - "Fixing AI-generated architecture diagrams"
+        - "Cleaning up ASCII flowcharts"
+        - "Producing clean documentation"
+      language: "Rust"
+      cli_name: "aadc"
     dependencies:
       - lang.rust
     installed_check:
@@ -2415,6 +2561,25 @@ modules:
     optional: true
     enabled_by_default: false
     tags: [utility, tracking]
+    web:
+      display_name: "Coding Agent Usage Tracker"
+      short_name: "CAUT"
+      tagline: "Track LLM provider usage and costs across agents"
+      icon: "bar-chart-3"
+      color: "#14B8A6"
+      href: "https://github.com/Dicklesworthstone/coding_agent_usage_tracker"
+      features:
+        - "Multi-provider usage aggregation"
+        - "Per-session token breakdown"
+        - "Cost estimation and trends"
+        - "Export to CSV/JSON"
+      tech_stack: ["Rust"]
+      use_cases:
+        - "Monitoring daily API spend"
+        - "Comparing provider costs"
+        - "Optimizing agent token usage"
+      language: "Rust"
+      cli_name: "caut"
     dependencies:
       - lang.rust
     installed_check:
