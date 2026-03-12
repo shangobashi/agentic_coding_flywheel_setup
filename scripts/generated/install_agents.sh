@@ -260,13 +260,30 @@ INSTALL_AGENTS_GEMINI
         fi
     fi
     if [[ "${DRY_RUN:-false}" = "true" ]]; then
-        log_info "dry-run: install: curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/misc_coding_agent_tips_and_scripts/main/fix-gemini-cli-ebadf-crash.sh | bash (target_user)"
+        log_info "dry-run: install: if [[ ! -f \"\$security_lib\" ]]; then (target_user)"
     else
         if ! run_as_target_shell <<'INSTALL_AGENTS_GEMINI'
-curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/misc_coding_agent_tips_and_scripts/main/fix-gemini-cli-ebadf-crash.sh | bash
+security_lib="${ACFS_LIB_DIR:-$HOME/.acfs/scripts/lib}/security.sh"
+if [[ ! -f "$security_lib" ]]; then
+  echo "agents.gemini: security library not found at $security_lib" >&2
+  exit 1
+fi
+if [[ -n "${ACFS_CHECKSUMS_YAML:-}" ]]; then
+  export CHECKSUMS_FILE="$ACFS_CHECKSUMS_YAML"
+fi
+# shellcheck disable=SC1090,SC1091
+source "$security_lib"
+load_checksums
+patch_url="${KNOWN_INSTALLERS[gemini_patch]:-}"
+patch_sha256="$(get_checksum gemini_patch)"
+if [[ -z "$patch_url" || -z "$patch_sha256" ]]; then
+  echo "agents.gemini: missing verified installer metadata for gemini_patch" >&2
+  exit 1
+fi
+verify_checksum "$patch_url" "$patch_sha256" "gemini_patch" | bash
 INSTALL_AGENTS_GEMINI
         then
-            log_error "agents.gemini: install command failed: curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/misc_coding_agent_tips_and_scripts/main/fix-gemini-cli-ebadf-crash.sh | bash"
+            log_error "agents.gemini: install command failed: if [[ ! -f \"\$security_lib\" ]]; then"
             return 1
         fi
     fi
@@ -294,15 +311,59 @@ install_agents_opencode() {
     log_step "Installing agents.opencode"
 
     if [[ "${DRY_RUN:-false}" = "true" ]]; then
-        log_info "dry-run: install: curl -fsSL https://opencode.ai/install | bash (target_user)"
+        log_info "dry-run: verified installer: agents.opencode"
     else
-        if ! run_as_target_shell <<'INSTALL_AGENTS_OPENCODE'
-curl -fsSL https://opencode.ai/install | bash
-INSTALL_AGENTS_OPENCODE
-        then
-            log_warn "agents.opencode: install command failed: curl -fsSL https://opencode.ai/install | bash"
+        if ! {
+            # Try security-verified install (no unverified fallback; fail closed)
+            local install_success=false
+
+            if acfs_security_init; then
+                # Check if KNOWN_INSTALLERS is available as an associative array (declare -A)
+                # The grep ensures we specifically have an associative array, not just any variable
+                if declare -p KNOWN_INSTALLERS 2>/dev/null | grep -q 'declare -A'; then
+                    local tool="opencode"
+                    local url=""
+                    local expected_sha256=""
+
+                    # Safe access with explicit empty default
+                    url="${KNOWN_INSTALLERS[$tool]:-}"
+                    if ! expected_sha256="$(get_checksum "$tool")"; then
+                        log_error "agents.opencode: get_checksum failed for tool '$tool'"
+                        expected_sha256=""
+                    fi
+
+                    if [[ -n "$url" ]] && [[ -n "$expected_sha256" ]]; then
+                        if verify_checksum "$url" "$expected_sha256" "$tool" | run_as_target_runner 'bash' '-s'; then
+                            install_success=true
+                        else
+                            log_error "agents.opencode: verify_checksum or installer execution failed"
+                        fi
+                    else
+                        if [[ -z "$url" ]]; then
+                            log_error "agents.opencode: KNOWN_INSTALLERS[$tool] not found"
+                        fi
+                        if [[ -z "$expected_sha256" ]]; then
+                            log_error "agents.opencode: checksum for '$tool' not found"
+                        fi
+                    fi
+                else
+                    log_error "agents.opencode: KNOWN_INSTALLERS array not available"
+                fi
+            else
+                log_error "agents.opencode: acfs_security_init failed - check security.sh and checksums.yaml"
+            fi
+
+            # Verified install is required - no fallback
+            if [[ "$install_success" = "true" ]]; then
+                true
+            else
+                log_error "Verified install failed for agents.opencode"
+                false
+            fi
+        }; then
+            log_warn "agents.opencode: verified installer failed"
             if type -t record_skipped_tool >/dev/null 2>&1; then
-              record_skipped_tool "agents.opencode" "install command failed: curl -fsSL https://opencode.ai/install | bash"
+              record_skipped_tool "agents.opencode" "verified installer failed"
             elif type -t state_tool_skip >/dev/null 2>&1; then
               state_tool_skip "agents.opencode"
             fi

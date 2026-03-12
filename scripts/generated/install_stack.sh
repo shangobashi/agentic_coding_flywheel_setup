@@ -277,9 +277,41 @@ if [[ -d "$runtime_dir" ]]; then
   fi
 fi
 
-systemctl --user daemon-reload >/dev/null 2>&1 || true
-if ! systemctl --user enable --now agent-mail.service >/dev/null 2>&1; then
-  systemctl --user restart agent-mail.service >/dev/null 2>&1
+fallback_pid_file="$storage_root/agent-mail.pid"
+fallback_log_file="$storage_root/agent-mail.log"
+
+launch_agent_mail_fallback() {
+  if curl -fsS --max-time 5 http://127.0.0.1:8765/health/liveness >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if [[ -f "$fallback_pid_file" ]]; then
+    existing_pid="$(cat "$fallback_pid_file" 2>/dev/null || true)"
+    if [[ -n "$existing_pid" ]] && kill -0 "$existing_pid" 2>/dev/null && \
+       ps -p "$existing_pid" -o args= 2>/dev/null | grep -Fq "$am_bin serve-http"; then
+      return 0
+    fi
+    rm -f "$fallback_pid_file"
+  fi
+
+  nohup env \
+    RUST_LOG=info \
+    STORAGE_ROOT="$storage_root" \
+    DATABASE_URL="$db_url" \
+    HTTP_PATH=/mcp/ \
+    "$am_bin" serve-http --host 127.0.0.1 --port 8765 --path /mcp --no-auth --no-tui \
+    >>"$fallback_log_file" 2>&1 < /dev/null &
+  echo $! > "$fallback_pid_file"
+}
+
+if command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; then
+  systemctl --user daemon-reload >/dev/null 2>&1 || true
+  if ! systemctl --user enable --now agent-mail.service >/dev/null 2>&1; then
+    systemctl --user restart agent-mail.service >/dev/null 2>&1
+  fi
+else
+  echo "Agent Mail: systemctl --user unavailable, using background fallback" >&2
+  launch_agent_mail_fallback
 fi
 INSTALL_STACK_MCP_AGENT_MAIL
         then
