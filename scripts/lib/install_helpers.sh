@@ -677,8 +677,9 @@ run_as_target_shell() {
     run_as_target bash -c "$env_setup; set -euo pipefail; (printf '%s\n' 'set -euo pipefail'; cat) | bash -s"
 }
 
-# Run a runner (bash, sh) with args as TARGET_USER, passing stdin
-# Usage: echo script | run_as_target_runner "bash" "-s" "--" "arg1"
+# Run a command as TARGET_USER while preserving stdin for the final runner.
+# Typical usage: echo script | run_as_target_runner "bash" "-s" "--" "arg1"
+# Env-prefixed usage is also supported: echo script | run_as_target_runner "env" "FOO=bar" "bash" "-s"
 run_as_target_runner() {
     local runner="$1"
     shift

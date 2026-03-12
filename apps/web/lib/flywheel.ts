@@ -1947,7 +1947,7 @@ your repo has everything needed for a fallback release before you actually need 
       "dsr doctor                   # Diagnose release setup",
     ],
     installCommand:
-      "git clone --depth 1 https://github.com/Dicklesworthstone/doodlestein_self_releaser.git && cp doodlestein_self_releaser/dsr ~/.local/bin/",
+      'curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/doodlestein_self_releaser/main/install.sh" | bash -s -- --easy-mode',
     language: "Bash",
   },
   {
@@ -2029,7 +2029,7 @@ script and the Claude settings entry.`,
       'grep "post-compact-reminder" ~/.claude/settings.json     # Verify registration',
     ],
     installCommand:
-      'curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/post_compact_reminder/main/install-post-compact-reminder.sh" | bash --yes',
+      'curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/post_compact_reminder/main/install-post-compact-reminder.sh" | bash -s -- --yes',
     language: "Bash",
   },
 ];

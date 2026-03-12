@@ -495,7 +495,20 @@ if whence -p br &>/dev/null; then
 fi
 
 # MCP Agent Mail helper (leave the real `am` CLI available for service/macros)
-alias amserve='cd ~/mcp_agent_mail 2>/dev/null && scripts/run_server_with_token.sh || echo "mcp_agent_mail not found in ~/mcp_agent_mail"'
+amserve() {
+  local storage_root="$HOME/.mcp_agent_mail_git_mailbox_repo"
+
+  if ! command -v am &>/dev/null; then
+    echo "am CLI not found"
+    return 1
+  fi
+
+  mkdir -p "$storage_root"
+  STORAGE_ROOT="$storage_root" \
+  DATABASE_URL="sqlite+aiosqlite:///${storage_root}/storage.sqlite3" \
+  HTTP_PATH=/mcp/ \
+  am serve-http --host 127.0.0.1 --port 8765 --path /mcp --no-auth --no-tui
+}
 
 # --- ACFS tool aliases (new tools) ---
 # RCH: offload cargo/gcc builds to remote workers

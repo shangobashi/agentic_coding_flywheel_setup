@@ -2533,10 +2533,15 @@ acfs_load_upstream_checksums() {
 # On checksum mismatch, we attempt a fresh fetch via GitHub API to handle CDN caching.
 # If still mismatched after fresh fetch, we fail closed (never execute unverified scripts).
 
-acfs_run_verified_upstream_script_as_target() {
+acfs_run_verified_upstream_script_as_target_with_env() {
     local tool="$1"
     local runner="$2"
-    shift 2 || true
+    local runner_env_assignment="${3:-}"
+    if [[ $# -ge 3 ]]; then
+        shift 3
+    else
+        set --
+    fi
 
     acfs_load_upstream_checksums
 
@@ -2544,6 +2549,10 @@ acfs_run_verified_upstream_script_as_target() {
     local expected_sha256="${ACFS_UPSTREAM_SHA256[$tool]:-}"
     if [[ -z "$url" ]] || [[ -z "$expected_sha256" ]]; then
         log_error "No checksum recorded for upstream installer: $tool"
+        return 1
+    fi
+    if [[ -n "$runner_env_assignment" ]] && [[ ! "$runner_env_assignment" =~ ^[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]+$ ]]; then
+        log_error "Invalid inline env assignment for upstream installer '$tool': $runner_env_assignment"
         return 1
     fi
 
@@ -2617,7 +2626,22 @@ acfs_run_verified_upstream_script_as_target() {
         fi
     fi
 
-    printf '%s' "$content" | run_as_target "$runner" -s -- "$@"
+    if [[ -n "$runner_env_assignment" ]]; then
+        printf '%s' "$content" | run_as_target env "$runner_env_assignment" "$runner" -s -- "$@"
+    else
+        printf '%s' "$content" | run_as_target "$runner" -s -- "$@"
+    fi
+}
+
+acfs_run_verified_upstream_script_as_target() {
+    local tool="$1"
+    local runner="$2"
+    if [[ $# -ge 2 ]]; then
+        shift 2
+    else
+        set --
+    fi
+    acfs_run_verified_upstream_script_as_target_with_env "$tool" "$runner" "" "$@"
 }
 
 ensure_root() {
@@ -4576,13 +4600,19 @@ NTM_CONFIG_EOF
     fi
     local tool="mcp_agent_mail"
     local target_dir="$TARGET_HOME/mcp_agent_mail"
+    local am_service_ready=false
+    if run_as_target bash -c 'command -v am >/dev/null 2>&1' && \
+       curl -fsS --max-time 10 http://127.0.0.1:8765/health/liveness >/dev/null 2>&1; then
+        log_success "MCP Agent Mail service already running on http://127.0.0.1:8765"
+        am_service_ready=true
+    fi
 
-    if acfs_load_upstream_checksums; then
+    if [[ "$am_service_ready" != "true" ]] && acfs_load_upstream_checksums; then
         local url="${ACFS_UPSTREAM_URLS[$tool]:-}"
         local expected_sha256="${ACFS_UPSTREAM_SHA256[$tool]:-}"
 
         if [[ -z "$url" ]] || [[ -z "$expected_sha256" ]]; then
-            log_warn "MCP Agent Mail: missing installer URL/checksum"
+            log_error "MCP Agent Mail: missing installer URL/checksum"
         else
             local tmp_install
             tmp_install="$(mktemp "${TMPDIR:-/tmp}/acfs-install-${tool}.XXXXXX" 2>/dev/null)" || tmp_install=""
@@ -4593,30 +4623,77 @@ NTM_CONFIG_EOF
                 if try_step "Installing MCP Agent Mail" run_as_target bash "$tmp_install" --dir "$target_dir" --yes --no-start; then
                     if run_as_target bash -c 'set -euo pipefail
                         command -v am >/dev/null 2>&1
-                        am service install >/dev/null
+                        storage_root="$HOME/.mcp_agent_mail_git_mailbox_repo"
+                        unit_dir="$HOME/.config/systemd/user"
+                        unit_file="$unit_dir/agent-mail.service"
+                        am_bin="$(command -v am)"
+                        db_url="sqlite+aiosqlite:///${storage_root}/storage.sqlite3"
+                        mkdir -p "$storage_root" "$unit_dir"
+                        cat > "$unit_file" <<UNIT_EOF
+[Unit]
+Description=MCP Agent Mail Server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=$storage_root
+Environment=RUST_LOG=info
+Environment=STORAGE_ROOT=$storage_root
+Environment=DATABASE_URL=$db_url
+Environment=HTTP_PATH=/mcp/
+ExecStart=$am_bin serve-http --host 127.0.0.1 --port 8765 --path /mcp --no-auth --no-tui
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+UNIT_EOF
+                        runtime_dir="/run/user/$(id -u)"
+                        if [[ -d "$runtime_dir" ]]; then
+                            export XDG_RUNTIME_DIR="$runtime_dir"
+                            if [[ -S "$runtime_dir/bus" ]]; then
+                                export DBUS_SESSION_BUS_ADDRESS="unix:path=$runtime_dir/bus"
+                            fi
+                        fi
                         systemctl --user daemon-reload >/dev/null 2>&1 || true
                         if ! systemctl --user enable --now agent-mail.service >/dev/null 2>&1; then
                             systemctl --user restart agent-mail.service >/dev/null 2>&1
                         fi
                     '; then
+                        local am_waited=0
+                        local am_max_wait=30
+                        until curl -fsS --max-time 10 http://127.0.0.1:8765/health/liveness >/dev/null 2>&1; do
+                            if [[ "$am_waited" -ge "$am_max_wait" ]]; then
+                                log_error "MCP Agent Mail service did not become healthy on http://127.0.0.1:8765 after ${am_max_wait}s"
+                                break
+                            fi
+                            sleep 2
+                            am_waited=$((am_waited + 2))
+                        done
                         if curl -fsS --max-time 10 http://127.0.0.1:8765/health/liveness >/dev/null 2>&1; then
                             log_success "MCP Agent Mail service running on http://127.0.0.1:8765"
+                            am_service_ready=true
                         else
-                            log_warn "MCP Agent Mail installed but service did not become healthy"
+                            log_error "MCP Agent Mail installed but service did not become healthy"
                         fi
                     else
-                        log_warn "MCP Agent Mail installed but managed service setup failed"
+                        log_error "MCP Agent Mail installed but managed service setup failed"
                     fi
                 else
-                    log_warn "MCP Agent Mail installation may have failed"
+                    log_error "MCP Agent Mail installation may have failed"
                 fi
+                rm -f "$tmp_install" 2>/dev/null || true
             else
                 rm -f "$tmp_install" 2>/dev/null || true
-                log_warn "MCP Agent Mail: installer verification failed"
+                log_error "MCP Agent Mail: installer verification failed"
             fi
         fi
-    else
-        log_warn "MCP Agent Mail: unable to load upstream checksums; refusing to run unverified installer"
+    elif [[ "$am_service_ready" != "true" ]]; then
+        log_error "MCP Agent Mail: unable to load upstream checksums; refusing to run unverified installer"
+    fi
+
+    if [[ "$am_service_ready" != "true" ]]; then
+        return 1
     fi
 
     # Ultimate Bug Scanner
@@ -4693,7 +4770,7 @@ NTM_CONFIG_EOF
         log_detail "RU already installed"
     else
         log_detail "Installing RU"
-        try_step "Installing RU" acfs_run_verified_upstream_script_as_target "ru" "bash" || log_warn "RU installation may have failed"
+        try_step "Installing RU" acfs_run_verified_upstream_script_as_target_with_env "ru" "bash" "RU_NON_INTERACTIVE=1" || log_warn "RU installation may have failed"
     fi
 
     # RCH (Remote Compilation Helper)
@@ -4736,31 +4813,12 @@ NTM_CONFIG_EOF
         try_step "Installing CASR" acfs_run_verified_upstream_script_as_target "casr" "bash" || log_warn "CASR installation may have failed"
     fi
 
-    # Doodlestein Self-Releaser (dsr) — standalone bash script, no upstream installer
+    # Doodlestein Self-Releaser (dsr) — modular bash project with verified installer
     if binary_installed "dsr"; then
         log_detail "DSR already installed"
     else
         log_detail "Installing DSR"
-        local dsr_tmp
-        dsr_tmp="$(mktemp -d "${TMPDIR:-/tmp}/acfs-dsr.XXXXXX" 2>/dev/null)" || dsr_tmp=""
-        if [[ -n "$dsr_tmp" ]] && [[ -d "$dsr_tmp" ]]; then
-            if run_as_target git clone --depth 1 https://github.com/Dicklesworthstone/doodlestein_self_releaser.git "$dsr_tmp/dsr" 2>/dev/null; then
-                if [[ -x "$dsr_tmp/dsr/dsr" ]]; then
-                    run_as_target cp "$dsr_tmp/dsr/dsr" "$ACFS_BIN_DIR/dsr" 2>/dev/null || \
-                        run_as_target cp "$dsr_tmp/dsr/dsr" "$TARGET_HOME/.local/bin/dsr" 2>/dev/null
-                    run_as_target chmod 755 "$ACFS_BIN_DIR/dsr" 2>/dev/null || \
-                        run_as_target chmod 755 "$TARGET_HOME/.local/bin/dsr" 2>/dev/null
-                    log_success "DSR installed"
-                else
-                    log_warn "DSR: binary not found in cloned repo"
-                fi
-            else
-                log_warn "DSR: git clone failed"
-            fi
-            rm -rf "$dsr_tmp"
-        else
-            log_warn "DSR: failed to create temp directory"
-        fi
+        try_step "Installing DSR" acfs_run_verified_upstream_script_as_target "dsr" "bash" --easy-mode || log_warn "DSR installation may have failed"
     fi
 
     # Agent Settings Backup (asb)
@@ -5241,7 +5299,7 @@ run_smoke_test() {
         echo "✅ Agent Mail: running on http://127.0.0.1:8765" >&2
     elif [[ -x "$TARGET_HOME/.local/bin/am" ]] || [[ -x "$TARGET_HOME/mcp_agent_mail/scripts/run_server_with_token.sh" ]]; then
         echo "⚠️ Agent Mail: installed but service is not running" >&2
-        echo "    Fix: am service install && systemctl --user enable --now agent-mail.service" >&2
+        echo "    Fix: rerun ACFS update/install to rewrite agent-mail.service, then systemctl --user enable --now agent-mail.service" >&2
         ((warnings += 1))
     else
         echo "⚠️ Agent Mail: not installed (re-run: curl -fsSL https://agent-flywheel.com/install | bash -s -- --yes --only-phase 8)" >&2

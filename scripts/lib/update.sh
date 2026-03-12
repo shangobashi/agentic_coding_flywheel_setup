@@ -1866,9 +1866,24 @@ update_stack() {
                     local uid
                     local runtime_dir
                     local user_bus
+                    local storage_root
+                    local unit_dir
+                    local unit_file
+                    local am_bin
+                    local db_url
                     uid="$(id -u)"
                     runtime_dir="/run/user/$uid"
                     user_bus="$runtime_dir/bus"
+                    storage_root="$HOME/.mcp_agent_mail_git_mailbox_repo"
+                    unit_dir="$HOME/.config/systemd/user"
+                    unit_file="$unit_dir/agent-mail.service"
+                    if ! am_bin="$(command -v am 2>/dev/null)"; then
+                        log_item "fail" "MCP Agent Mail" "am CLI missing after install"
+                        ((FAIL_COUNT += 1))
+                        rm -f "$tmp_install"
+                        return 0
+                    fi
+                    db_url="sqlite+aiosqlite:///${storage_root}/storage.sqlite3"
 
                     local -a service_env=("HOME=$HOME")
                     if [[ -d "$runtime_dir" ]]; then
@@ -1878,14 +1893,43 @@ update_stack() {
                         fi
                     fi
 
-                    if env "${service_env[@]}" am service install >/dev/null 2>&1; then
-                        env "${service_env[@]}" systemctl --user daemon-reload >/dev/null 2>&1 || true
-                        if ! env "${service_env[@]}" systemctl --user enable --now agent-mail.service >/dev/null 2>&1; then
-                            env "${service_env[@]}" systemctl --user restart agent-mail.service >/dev/null 2>&1
-                        fi
+                    mkdir -p "$storage_root" "$unit_dir"
+                    cat > "$unit_file" <<UNIT_EOF
+[Unit]
+Description=MCP Agent Mail Server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=$storage_root
+Environment=RUST_LOG=info
+Environment=STORAGE_ROOT=$storage_root
+Environment=DATABASE_URL=$db_url
+Environment=HTTP_PATH=/mcp/
+ExecStart=$am_bin serve-http --host 127.0.0.1 --port 8765 --path /mcp --no-auth --no-tui
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+UNIT_EOF
+
+                    env "${service_env[@]}" systemctl --user daemon-reload >/dev/null 2>&1 || true
+                    if ! env "${service_env[@]}" systemctl --user enable --now agent-mail.service >/dev/null 2>&1; then
+                        env "${service_env[@]}" systemctl --user restart agent-mail.service >/dev/null 2>&1
                     fi
 
-                    if curl -sf http://127.0.0.1:8765/health/liveness >/dev/null 2>&1; then
+                    local am_waited=0
+                    local am_max_wait=30
+                    until curl -fsS --max-time 10 http://127.0.0.1:8765/health/liveness >/dev/null 2>&1; do
+                        if [[ "$am_waited" -ge "$am_max_wait" ]]; then
+                            break
+                        fi
+                        sleep 2
+                        am_waited=$((am_waited + 2))
+                    done
+
+                    if curl -fsS --max-time 10 http://127.0.0.1:8765/health/liveness >/dev/null 2>&1; then
                         if [[ "$QUIET" != "true" ]] && [[ "$VERBOSE" != "true" ]]; then
                             printf "\033[1A\033[2K  ${GREEN}[ok]${NC} %s\n" "MCP Agent Mail"
                         elif [[ "$QUIET" != "true" ]]; then
@@ -2002,19 +2046,8 @@ update_stack() {
     # Post-Compact Reminder (pcr) - always install/update
     run_cmd "PCR" update_run_verified_installer pcr --update
 
-    # DSR (Doodlestein Self-Releaser) - standalone bash script, update via git clone
-    if cmd_exists dsr; then
-        run_cmd "DSR" bash -c '
-            dsr_tmp="$(mktemp -d "${TMPDIR:-/tmp}/acfs-dsr-update.XXXXXX")"
-            if git clone --depth 1 https://github.com/Dicklesworthstone/doodlestein_self_releaser.git "$dsr_tmp/dsr" 2>/dev/null; then
-                if [[ -f "$dsr_tmp/dsr/dsr" ]]; then
-                    cp "$dsr_tmp/dsr/dsr" "$HOME/.local/bin/dsr"
-                    chmod 755 "$HOME/.local/bin/dsr"
-                fi
-            fi
-            rm -rf "$dsr_tmp"
-        '
-    fi
+    # DSR (Doodlestein Self-Releaser) - always install/update
+    run_cmd "DSR" update_run_verified_installer dsr --easy-mode
 }
 
 # ============================================================

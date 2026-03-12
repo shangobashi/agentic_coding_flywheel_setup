@@ -1057,21 +1057,63 @@ modules:
             echo "Agent Mail CLI missing after install" >&2
             exit 1
           fi
-          am service install >/dev/null
+          storage_root="$HOME/.mcp_agent_mail_git_mailbox_repo"
+          unit_dir="$HOME/.config/systemd/user"
+          unit_file="$unit_dir/agent-mail.service"
+          am_bin="$(command -v am)"
+          db_url="sqlite+aiosqlite:///${storage_root}/storage.sqlite3"
+
+          mkdir -p "$storage_root" "$unit_dir"
+          cat > "$unit_file" <<UNIT_EOF
+          [Unit]
+          Description=MCP Agent Mail Server
+          After=network.target
+
+          [Service]
+          Type=simple
+          WorkingDirectory=$storage_root
+          Environment=RUST_LOG=info
+          Environment=STORAGE_ROOT=$storage_root
+          Environment=DATABASE_URL=$db_url
+          Environment=HTTP_PATH=/mcp/
+          ExecStart=$am_bin serve-http --host 127.0.0.1 --port 8765 --path /mcp --no-auth --no-tui
+          Restart=on-failure
+          RestartSec=5
+
+          [Install]
+          WantedBy=default.target
+          UNIT_EOF
+
+          runtime_dir="/run/user/$(id -u)"
+          if [[ -d "$runtime_dir" ]]; then
+            export XDG_RUNTIME_DIR="$runtime_dir"
+            if [[ -S "$runtime_dir/bus" ]]; then
+              export DBUS_SESSION_BUS_ADDRESS="unix:path=$runtime_dir/bus"
+            fi
+          fi
+
           systemctl --user daemon-reload >/dev/null 2>&1 || true
           if ! systemctl --user enable --now agent-mail.service >/dev/null 2>&1; then
             systemctl --user restart agent-mail.service >/dev/null 2>&1
           fi
       - |
-          if ! curl -fsS --max-time 10 http://127.0.0.1:8765/health/liveness >/dev/null 2>&1; then
-            echo "Agent Mail service did not become healthy on 127.0.0.1:8765" >&2
-            exit 1
-          fi
+          # Wait for the managed Agent Mail service to become healthy.
+          waited=0
+          max_wait=30
+          until curl -fsS --max-time 10 http://127.0.0.1:8765/health/liveness >/dev/null 2>&1; do
+            if [[ "$waited" -ge "$max_wait" ]]; then
+              echo "Agent Mail service did not become healthy on 127.0.0.1:8765 after ${max_wait}s" >&2
+              exit 1
+            fi
+            sleep 2
+            waited=$((waited + 2))
+          done
     verify:
       - command -v am
       - curl -fsS --max-time 10 http://127.0.0.1:8765/health/liveness >/dev/null
     notes:
-      - "Installs with --no-start, then enables a managed user service on port 8765"
+      - "Installs with --no-start, then writes a managed no-auth user service on port 8765"
+      - "Managed service pins storage, database, and MCP path under ~/.mcp_agent_mail_git_mailbox_repo"
       - "Server health is verified at http://127.0.0.1:8765/health/liveness after install"
 
   - id: stack.meta_skill
@@ -1644,6 +1686,7 @@ modules:
     verified_installer:
       tool: ru
       runner: bash
+      env: ["RU_NON_INTERACTIVE=1"]
     install: []
     verify:
       - ru --version
@@ -1985,18 +2028,14 @@ modules:
     installed_check:
       run_as: target_user
       command: "command -v dsr"
-    install:
-      # DSR is a standalone bash script — clone repo and copy binary
-      - |
-        DSR_TMP="$(mktemp -d "${TMPDIR:-/tmp}/dsr_install.XXXXXX")"
-        cd "$DSR_TMP"
-        git clone --depth 1 https://github.com/Dicklesworthstone/doodlestein_self_releaser.git .
-        cp dsr ~/.local/bin/dsr
-        chmod 755 ~/.local/bin/dsr
-        cd ..
-        rm -rf "$DSR_TMP"
+    verified_installer:
+      tool: dsr
+      runner: bash
+      args: ["--easy-mode"]
+      url: "https://raw.githubusercontent.com/Dicklesworthstone/doodlestein_self_releaser/main/install.sh"
+    install: []
     verify:
-      - dsr doctor || dsr --help
+      - dsr --version || dsr --help
 
   - id: stack.agent_settings_backup
     description: Smart backup tool for AI coding agent configuration folders (asb)
@@ -2049,7 +2088,7 @@ modules:
     tags: [recommended, safety, hooks]
     web:
       display_name: "Post-Compact Reminder"
-      short_name: "pcr"
+      short_name: "PCR"
       tagline: "Stop Claude from forgetting project rules after compaction"
       icon: "shield-alert"
       color: "#DC2626"
