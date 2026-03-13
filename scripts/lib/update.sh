@@ -1759,7 +1759,7 @@ update_cloud() {
         capture_version_before "gh"
         # Update gh extensions if any are installed
         local gh_extensions=0
-        gh_extensions=$(gh extension list 2>/dev/null | wc -l || true)
+        gh_extensions=$(gh extension list 2>/dev/null | grep -v "no installed extensions found" | grep -v "No extensions installed" | wc -l || true)
         gh_extensions=$((gh_extensions + 0))  # Strip whitespace, ensure integer
         if [[ $gh_extensions -gt 0 ]]; then
             run_cmd "GitHub CLI extensions" gh extension upgrade --all

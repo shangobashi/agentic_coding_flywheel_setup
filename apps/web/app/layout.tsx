@@ -92,12 +92,12 @@ export default function RootLayout({
         <div className="pointer-events-none fixed inset-0 z-50 bg-noise" />
         <Suspense fallback={null}>
           <ThirdPartyScripts />
-          <QueryProvider>
-            <MotionProvider>
-              <AnalyticsProvider>{children}</AnalyticsProvider>
-            </MotionProvider>
-          </QueryProvider>
         </Suspense>
+        <QueryProvider>
+          <MotionProvider>
+            <AnalyticsProvider>{children}</AnalyticsProvider>
+          </MotionProvider>
+        </QueryProvider>
       </body>
     </html>
   );
