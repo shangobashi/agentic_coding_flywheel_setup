@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { motion, useInView, AnimatePresence } from "framer-motion";
-import { Mail, Zap, CheckCircle2, XOctagon } from "lucide-react";
+import { useState, useRef } from "react";
+import { motion, AnimatePresence, useInView } from "framer-motion";
+import { Mail, Zap, XOctagon, CheckCircle2, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Mode = "broadcast" | "agentmail";
@@ -13,10 +13,10 @@ export function AgentMailViz() {
   const isInView = useInView(ref, { once: true, margin: "-100px" });
 
   const agents = [
-    { id: 1, x: 20, y: 20, color: "#FFFFFF", name: "A1 (UI)" },
+    { id: 1, x: 20, y: 20, color: "#22d3ee", name: "A1 (UI)" },
     { id: 2, x: 80, y: 20, color: "#a855f7", name: "A2 (DB)" },
-    { id: 3, x: 20, y: 80, color: "#71717A", name: "A3 (API)" },
-    { id: 4, x: 80, y: 80, color: "#52525B", name: "A4 (Tests)" }
+    { id: 3, x: 20, y: 80, color: "#f472b6", name: "A3 (API)" },
+    { id: 4, x: 80, y: 80, color: "#34d399", name: "A4 (Tests)" }
   ];
 
   // Draw lines between all nodes for broadcast
@@ -43,13 +43,13 @@ export function AgentMailViz() {
       <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between p-6 sm:p-8 border-b border-white/[0.04] bg-white/[0.01] backdrop-blur-md">
         <div>
           <div className="text-[0.65rem] font-bold text-white/30 uppercase tracking-widest mb-2 flex items-center gap-2">
-            <span className={cn("w-1.5 h-1.5 rounded-full animate-pulse", mode === "broadcast" ? "bg-[#FF5F56]" : "bg-[#FF5500]")} />
+            <span className={cn("w-1.5 h-1.5 rounded-full animate-pulse", mode === "broadcast" ? "bg-[#FF5F56]" : "bg-cyan-400")} />
             Interactive Visualization
           </div>
           <div className="flex items-center gap-3">
             <span className={cn(
               "flex h-8 w-8 items-center justify-center rounded-xl transition-all duration-500 shadow-inner",
-              mode === "broadcast" ? "bg-[#FF5F56]/10 text-[#FF5F56] border border-[#FF5F56]/20" : "bg-[#FF5500]/10 text-[#FF5500] border border-[#FF5500]/20"
+              mode === "broadcast" ? "bg-[#FF5F56]/10 text-[#FF5F56] border border-[#FF5F56]/20" : "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20"
             )}>
               <Mail className="h-4 w-4" />
             </span>
@@ -78,7 +78,7 @@ export function AgentMailViz() {
             onClick={() => setMode("agentmail")}
             className={cn(
               "px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold tracking-wide transition-all duration-500 flex items-center gap-2",
-              mode === "agentmail" ? "bg-[#FF5500]/10 text-[#FF5500] shadow-sm border border-[#FF5500]/20" : "text-white/40 hover:text-white/80 border border-transparent"
+              mode === "agentmail" ? "bg-cyan-500/10 text-cyan-400 shadow-sm border border-cyan-500/20" : "text-white/40 hover:text-white/80 border border-transparent"
             )}
           >
             <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -91,7 +91,7 @@ export function AgentMailViz() {
       <div className="relative flex-1 min-h-[450px] bg-[#020408] flex items-center justify-center p-8 overflow-hidden">
         <div className={cn(
           "absolute inset-0 transition-opacity duration-1000 opacity-20",
-          mode === "broadcast" ? "bg-[radial-gradient(ellipse_at_center,rgba(255,95,86,0.15),transparent_70%)]" : "bg-[radial-gradient(ellipse_at_center,rgba(255,85,0,0.15),transparent_70%)]"
+          mode === "broadcast" ? "bg-[radial-gradient(ellipse_at_center,rgba(255,95,86,0.15),transparent_70%)]" : "bg-[radial-gradient(ellipse_at_center,rgba(34,211,238,0.15),transparent_70%)]"
         )} />
         
         {/* State Indicators */}
@@ -105,9 +105,9 @@ export function AgentMailViz() {
                </motion.div>
             ) : (
                <motion.div key="agentmail" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="flex flex-col gap-2">
-                 <span className="text-xs font-bold uppercase tracking-widest text-[#FF5500] bg-[#FF5500]/10 px-3 py-1.5 rounded-lg border border-[#FF5500]/20 shadow-[0_0_15px_rgba(255,85,0,0.15)] flex items-center gap-2"><CheckCircle2 className="h-3 w-3" /> O(1) Messages</span>
+                 <span className="text-xs font-bold uppercase tracking-widest text-cyan-400 bg-cyan-500/10 px-3 py-1.5 rounded-lg border border-cyan-500/20 shadow-[0_0_15px_rgba(34,211,238,0.15)] flex items-center gap-2"><CheckCircle2 className="h-3 w-3" /> O(1) Messages</span>
                  <span className="text-xs font-bold uppercase tracking-widest text-[#27C93F] bg-[#27C93F]/10 px-3 py-1.5 rounded-lg border border-[#27C93F]/20 shadow-[0_0_15px_rgba(39,201,63,0.15)] flex items-center gap-2"><CheckCircle2 className="h-3 w-3" /> Advisory Locks</span>
-                 <span className="text-xs font-bold uppercase tracking-widest text-[#FF5500] bg-[#FF5500]/10 px-3 py-1.5 rounded-lg border border-[#FF5500]/20 shadow-[0_0_15px_rgba(255,85,0,0.15)] flex items-center gap-2"><CheckCircle2 className="h-3 w-3" /> High SNR</span>
+                 <span className="text-xs font-bold uppercase tracking-widest text-cyan-400 bg-cyan-500/10 px-3 py-1.5 rounded-lg border border-cyan-500/20 shadow-[0_0_15px_rgba(34,211,238,0.15)] flex items-center gap-2"><CheckCircle2 className="h-3 w-3" /> High SNR</span>
                </motion.div>
             )}
           </AnimatePresence>
@@ -158,7 +158,7 @@ export function AgentMailViz() {
                       y1={`${line.from.y}%`}
                       x2={`${line.to.x}%`}
                       y2={`${line.to.y}%`}
-                      stroke="#FF5500"
+                      stroke="#22d3ee"
                       strokeWidth="2"
                       strokeDasharray="6 6"
                       initial={{ opacity: 0, strokeDashoffset: 20 }}
@@ -174,7 +174,7 @@ export function AgentMailViz() {
                       cx={`${line.to.x}%`}
                       cy={`${line.to.y}%`}
                       r="4"
-                      fill="#FF5500"
+                      fill="#22d3ee"
                       initial={{ opacity: 0, scale: 0 }}
                       animate={{ opacity: [0, 1, 0], scale: [1, 2, 3] }}
                       transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.5 }}
@@ -220,7 +220,7 @@ export function AgentMailViz() {
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.5 }}
                 transition={{ delay: 0.3 + i * 0.2, type: "spring", stiffness: 300, damping: 20 }}
-                className="absolute z-20 bg-[#FF5500]/10 border border-[#FF5500]/30 text-[#FF5500] text-[10px] px-3 py-1.5 rounded-full font-medium whitespace-nowrap shadow-[0_0_15px_rgba(255,85,0,0.2)] backdrop-blur-md"
+                className="absolute z-20 bg-cyan-500/10 border border-cyan-500/30 text-cyan-50 text-[10px] px-3 py-1.5 rounded-full font-medium whitespace-nowrap shadow-[0_0_15px_rgba(34,211,238,0.2)] backdrop-blur-md"
                 style={{
                   left: `${(line.from.x + line.to.x) / 2}%`,
                   top: `${(line.from.y + line.to.y) / 2}%`,

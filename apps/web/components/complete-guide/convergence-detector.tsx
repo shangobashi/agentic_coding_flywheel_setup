@@ -18,7 +18,7 @@ function getConvergencePhase(score: number) {
   if (score < 0.55) {
     return {
       label: "Architecture",
-      color: "#3F3F46",
+      color: "#f59e0b",
       desc: "Boundaries are improving, but the system is still shedding big assumptions.",
     };
   }
@@ -26,14 +26,14 @@ function getConvergencePhase(score: number) {
   if (score < 0.75) {
     return {
       label: "Refinement",
-      color: "#FFFFFF",
+      color: "#22d3ee",
       desc: "The big shape is stable; most changes are now edge cases and coverage gains.",
     };
   }
 
   return {
     label: "Polishing",
-    color: "#52525B",
+    color: "#34d399",
     desc: "The draft is converging and fresh passes mostly confirm, not overturn, prior work.",
   };
 }
@@ -46,9 +46,9 @@ function getConvergenceVerdict(score: number) {
 }
 
 const CONVERGENCE_SIGNALS = [
-  { label: "Output Size Shrinking", weight: 0.35, weightLabel: "35%", color: "#FFFFFF" },
-  { label: "Change Velocity Slowing", weight: 0.35, weightLabel: "35%", color: "#A1A1AA" },
-  { label: "Content Similarity Rising", weight: 0.3, weightLabel: "30%", color: "#52525B" },
+  { label: "Output Size Shrinking", weight: 0.35, weightLabel: "35%", color: "#38bdf8" },
+  { label: "Change Velocity Slowing", weight: 0.35, weightLabel: "35%", color: "#a78bfa" },
+  { label: "Content Similarity Rising", weight: 0.3, weightLabel: "30%", color: "#34d399" },
 ] as const;
 
 const PRESETS = [
@@ -208,7 +208,7 @@ export function ConvergenceDetector() {
           <div className="mt-6">
             <div className="h-3 overflow-hidden rounded-full border border-white/10 bg-white/[0.04]">
               <motion.div
-                className="h-full bg-[linear-gradient(90deg,#ef4444_0%,#3F3F46_35%,#FFFFFF_70%,#52525B_100%)]"
+                className="h-full bg-[linear-gradient(90deg,#ef4444_0%,#f59e0b_35%,#22d3ee_70%,#34d399_100%)]"
                 initial={reducedMotion ? false : { width: 0 }}
                 animate={{ width: `${score * 100}%` }}
                 transition={{ duration: 0.45 }}

@@ -11,10 +11,20 @@ import { motion, useReducedMotion, useInView, AnimatePresence } from "framer-mot
 import {
   Check,
   Copy,
+  ChevronDown,
   Lightbulb,
   AlertTriangle,
+  Quote,
   Info,
+  X,
+  Menu,
+  Terminal,
+  Zap,
 } from "lucide-react";
+import {
+  CodeBlock as SharedCodeBlock,
+  type CodeBlockProps as SharedCodeBlockProps,
+} from "@/components/ui/code-block";
 import { copyTextToClipboard } from "@/lib/utils";
 
 export { FlywheelDiagram } from "./flywheel-diagram";
@@ -22,17 +32,19 @@ export { FlywheelDiagram } from "./flywheel-diagram";
 // =============================================================================
 // GUIDE SECTION - Anchored sections with gradient headers + scroll reveal
 // =============================================================================
-type GuideSectionProps = {
+interface GuideSectionProps {
   id: string;
-  number: string;
+  number?: string;
   title: string;
+  icon?: ReactNode;
   children: ReactNode;
-};
+}
 
 export function GuideSection({
   id,
   number,
   title,
+  icon,
   children,
 }: GuideSectionProps) {
   const ref = useRef<HTMLElement>(null);
@@ -47,44 +59,64 @@ export function GuideSection({
       initial={rm ? {} : { opacity: 0, y: 40 }}
       animate={isInView ? { opacity: 1, y: 0 } : {}}
       transition={rm ? {} : { type: "spring", stiffness: 80, damping: 20, mass: 1 }}
-      className="relative scroll-mt-32 pb-24 md:pb-40 w-full"
+      className="relative scroll-mt-32 pb-24 md:pb-32"
     >
-      {/* Naked Typography Header */}
-      <div className="relative mb-16 flex flex-col xl:flex-row items-start xl:items-baseline gap-6 xl:gap-12">
-        {typeof number === "string" && number !== "" && (
-          <div className="flex-shrink-0">
-            <span className="font-mono text-[4rem] sm:text-[6rem] xl:text-[8rem] font-black leading-none tracking-tighter text-white opacity-10 xl:absolute xl:-left-32 xl:top-0">
-              {number.padStart(2, '0')}
-            </span>
-          </div>
-        )}
+      {/* Subtle Side Label for desktop */}
+      {typeof number === "string" && number !== "" && (
+        <div className="absolute -left-32 top-0 hidden xl:flex items-center justify-end w-24 pointer-events-none select-none">
+          <span className="text-[8rem] font-black text-white/[0.015] leading-none tracking-tighter">
+            {number.padStart(2, '0')}
+          </span>
+        </div>
+      )}
 
-        <div className="flex-1 min-w-0 z-10 relative">
-          {title.startsWith('Phase ') ? (
-            <div className="flex flex-col gap-4">
-              <span className="text-[#FF5500] font-mono text-[0.7rem] sm:text-[0.75rem] uppercase tracking-[0.3em] font-bold flex items-center gap-4">
-                <span className="w-8 h-px bg-[#FF5500]/40" />
-                {title.split(':')[0]}
-              </span>
-              <h2 className="text-4xl sm:text-5xl md:text-6xl lg:text-[4.5rem] font-black text-white tracking-tighter leading-[1.05]">
-                {title.split(':').slice(1).join(':').trim()}
-              </h2>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-4">
-              <span className="text-[#FF5500] font-mono text-[0.7rem] sm:text-[0.75rem] uppercase tracking-[0.3em] font-bold flex items-center gap-4">
-                <span className="w-8 h-px bg-[#FF5500]/40" />
-                Section {number}
-              </span>
-              <h2 className="text-4xl sm:text-5xl md:text-6xl lg:text-[4.5rem] font-black text-white tracking-tighter leading-[1.05]">
-                {title}
-              </h2>
+      {/* Section header */}
+      <div className="relative mb-16 group">
+        <div className="flex flex-col sm:flex-row sm:items-start gap-5 sm:gap-6">
+          {typeof number === "string" && number !== "" && (
+            <div className="flex h-12 w-12 sm:h-14 sm:w-14 shrink-0 items-center justify-center rounded-[1rem] bg-gradient-to-b from-white/[0.05] to-transparent border border-white/10 font-mono text-xl sm:text-2xl font-black text-primary shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_8px_16px_-4px_rgba(0,0,0,0.5)] transition-all duration-500 group-hover:bg-primary/10 group-hover:border-primary/30 group-hover:shadow-[0_0_30px_rgba(var(--primary-rgb),0.2)]">
+              <span className="bg-gradient-to-br from-white to-primary/80 bg-clip-text text-transparent">{number}</span>
             </div>
           )}
+
+          <div className="flex flex-1 min-w-0 items-start gap-4 sm:gap-5">
+            {icon && (
+              <div className="mt-1 sm:mt-1.5 flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-[0.85rem] border border-white/[0.08] bg-[#05070a] text-primary shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)] transition-all duration-500 group-hover:border-primary/30 group-hover:bg-primary/5 group-hover:shadow-[0_0_20px_rgba(var(--primary-rgb),0.15)] group-hover:scale-105">
+                {icon}
+              </div>
+            )}
+
+            <div className="flex-1 min-w-0">
+              {title.startsWith('Phase ') ? (
+                <div className="flex flex-col gap-2">
+                  <span className="text-primary/80 font-mono text-[0.65rem] sm:text-[0.75rem] uppercase tracking-[0.3em] font-bold flex items-center gap-3">
+                    <span className="w-6 h-px bg-primary/40" />
+                    {title.split(':')[0]}
+                  </span>
+                  <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-white tracking-tight leading-[1.15] drop-shadow-lg">
+                    {title.split(':').slice(1).join(':').trim()}
+                  </h2>
+                </div>
+              ) : (
+                <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-white tracking-tight leading-[1.15] pt-0.5 drop-shadow-lg">
+                  {title}
+                </h2>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Minimalist divider */}
+        <div className="mt-8 sm:mt-12 h-[1px] w-full bg-gradient-to-r from-white/[0.08] via-white/[0.02] to-transparent relative overflow-hidden">
+          <motion.div 
+            initial={{ x: "-100%" }}
+            animate={isInView ? { x: "200%" } : {}}
+            transition={{ duration: 2.5, ease: "easeInOut", repeat: Infinity, repeatDelay: 4 }}
+            className="absolute inset-y-0 w-1/4 bg-gradient-to-r from-transparent via-primary/30 to-transparent"
+          />
         </div>
       </div>
-      
-      <div className="w-full">{children}</div>
+      <div className="space-y-10 sm:space-y-12">{children}</div>
     </motion.section>
   );
 }
@@ -100,9 +132,10 @@ export function SubSection({
   children: ReactNode;
 }) {
   return (
-    <div className="mt-20 first:mt-12 group/sub relative w-full">
-      <h3 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-8 tracking-tight flex items-baseline gap-4">
-        <span className="text-[#FF5500] text-xl opacity-50 font-normal">/</span>
+    <div className="mt-20 first:mt-12 group/sub relative">
+      <div className="absolute -left-4 sm:-left-8 top-1.5 bottom-0 w-px bg-white/[0.03] group-hover/sub:bg-primary/20 transition-colors duration-500 hidden sm:block" />
+      <h3 className="text-xl sm:text-2xl font-bold text-white mb-8 flex items-center gap-4 tracking-tight relative">
+        <div className="absolute -left-4 sm:-left-8 top-1/2 -translate-y-1/2 w-px h-0 bg-primary transition-all duration-500 group-hover/sub:h-full hidden sm:block shadow-[0_0_10px_rgba(var(--primary-rgb),0.5)]" />
         {title}
       </h3>
       <div className="space-y-6 sm:space-y-8">{children}</div>
@@ -122,13 +155,12 @@ export function P({
 }) {
   return (
     <p
-      className={`text-[1.1rem] sm:text-[1.2rem] lg:text-[1.25rem] leading-[1.7] tracking-[-0.015em] max-w-[65ch] ${
+      className={`text-[1.05rem] sm:text-[1.15rem] leading-[1.8] tracking-[-0.01em] ${
         highlight 
-          ? "text-white font-medium bg-transparent p-0 rounded-none border-l-0 border-transparent shadow-none" 
-          : "text-zinc-400 font-light"
+          ? "text-white font-normal bg-gradient-to-r from-white/[0.03] to-transparent p-6 sm:p-8 rounded-2xl border-l-2 border-primary shadow-sm" 
+          : "text-zinc-300 font-light"
       }`}
     >
-      {highlight && <span className="inline-block w-2 h-2 rounded-full bg-[#FF5500] mr-3 relative -top-0.5 shadow-[0_0_8px_rgba(255,85,0,0.6)]" />}
       {children}
     </p>
   );
@@ -139,8 +171,9 @@ export function P({
 // =============================================================================
 export function BlockQuote({ children }: { children: ReactNode }) {
   return (
-    <div className="relative pl-6 sm:pl-8 py-4 my-12 border-l-[3px] border-[#FF5500]/40 bg-transparent rounded-none max-w-[65ch]">
-      <div className="relative text-white/90 italic leading-[1.7] text-[1.25rem] sm:text-[1.5rem] font-light tracking-tight">
+    <div className="relative pl-8 sm:pl-12 py-8 my-12 border-l border-white/[0.1] bg-gradient-to-r from-white/[0.02] to-transparent rounded-r-3xl">
+      <Quote className="absolute left-4 top-8 h-8 w-8 text-primary/10 -scale-x-100 pointer-events-none" />
+      <div className="relative text-white/90 italic leading-[1.8] text-[1.15rem] sm:text-[1.25rem] font-light tracking-tight">
         {children}
       </div>
     </div>
@@ -150,29 +183,14 @@ export function BlockQuote({ children }: { children: ReactNode }) {
 // =============================================================================
 // CODE BLOCK - Terminal-style wrapper
 // =============================================================================
-export function CodeBlock({ code, language }: { code: string; language: string }) {
-  return (
-    <div className="my-8 overflow-hidden rounded-xl border border-white/[0.08] bg-[#000000] shadow-2xl relative w-full group/cb">
-      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#FF5500]/20 to-transparent" />
-      <div className="flex items-center gap-3 bg-white/[0.02] border-b border-white/[0.04] px-4 py-2.5">
-        <div className="flex gap-1.5">
-          <div className="h-2 w-2 rounded-full bg-white/20" />
-          <div className="h-2 w-2 rounded-full bg-white/20" />
-          <div className="h-2 w-2 rounded-full bg-white/20" />
-        </div>
-        <div className="text-[0.6rem] font-mono uppercase tracking-widest text-white/30">{language}</div>
-      </div>
-      <div className="p-5 sm:p-6 overflow-x-auto">
-        <code className="text-[0.85rem] sm:text-[0.95rem] text-zinc-300 font-mono leading-[1.7]">
-          <pre>{code}</pre>
-        </code>
-      </div>
-    </div>
-  );
+export function CodeBlock(
+  props: Omit<SharedCodeBlockProps, "variant" | "copyable">,
+) {
+  return <SharedCodeBlock {...props} variant="terminal" copyable />;
 }
 
 // =============================================================================
-// PROMPT BLOCK - Naked Terminal Marginalia Style
+// PROMPT BLOCK - Collapsible prompt display with copy + metadata
 // =============================================================================
 export function PromptBlock({
   title,
@@ -205,51 +223,84 @@ export function PromptBlock({
     }, 2000);
   }, [prompt]);
 
+  // Very simple client-side syntax highlighting for structural keywords
   const highlightPrompt = (text: string) => {
     const escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const keywords = ['Search', 'Review', 'Read', 'Write', 'Fix', 'Create', 'Update', 'Do we have', 'OK', 'Look', 'Execute'];
     let highlighted = escaped;
     keywords.forEach(kw => {
       const regex = new RegExp(`\\b(${kw})\\b`, 'g');
-      highlighted = highlighted.replace(regex, '<span class="text-[#FF5500] font-medium">$1</span>');
+      highlighted = highlighted.replace(regex, '<span class="text-primary font-medium">$1</span>');
     });
-    highlighted = highlighted.replace(/(\[[A-Z_]+\])/g, '<span class="text-white/60 font-medium bg-white/10 px-1 rounded">$1</span>');
+    highlighted = highlighted.replace(/(\[[A-Z_]+\])/g, '<span class="text-violet-400 font-medium bg-violet-400/10 px-1 rounded">$1</span>');
     return highlighted;
   };
 
   return (
-    <div className="group relative border-l-2 border-white/10 bg-transparent py-2 pl-6 sm:pl-8 my-10 transition-colors duration-500 hover:border-[#FF5500]/40 w-full">
-      <div className="flex items-start justify-between gap-4 mb-4">
-        <h4 className="text-[0.7rem] font-mono font-bold text-white uppercase tracking-[0.2em]">{title}</h4>
-        <button
+    <div className="group relative rounded-2xl border border-white/[0.06] bg-[#0A0D14] overflow-hidden transition-all duration-500 hover:border-primary/30 my-12 shadow-xl">
+      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-overlay pointer-events-none" />
+      
+      {/* Top bar — refined metal */}
+      <div className="relative flex items-center justify-between px-5 sm:px-6 py-3.5 bg-white/[0.015] border-b border-white/[0.04] z-10 backdrop-blur-md">
+        <div className="flex items-center gap-4">
+          <div className="flex gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-white/10 group-hover:bg-[#FF5F56] transition-colors duration-500 shadow-sm" />
+            <div className="w-2.5 h-2.5 rounded-full bg-white/10 group-hover:bg-[#FFBD2E] transition-colors duration-500 shadow-sm" />
+            <div className="w-2.5 h-2.5 rounded-full bg-white/10 group-hover:bg-[#27C93F] transition-colors duration-500 shadow-sm" />
+          </div>
+          <span className="ml-2 text-[0.7rem] font-bold text-white/50 tracking-wider uppercase">{title}</span>
+        </div>
+        <motion.button
+          whileTap={{ scale: 0.95 }}
           onClick={handleCopy}
-          className="text-white/30 hover:text-[#FF5500] transition-colors"
+          className="flex items-center gap-2 rounded-lg bg-white/[0.03] px-3 py-1.5 text-[0.7rem] font-medium text-white/60 hover:bg-white/10 hover:text-white border border-white/[0.04] transition-all duration-200"
         >
-          {copied ? <Check className="h-4 w-4 text-[#FF5500]" /> : <Copy className="h-4 w-4" />}
-        </button>
+          {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+          <span className="hidden sm:inline">{copied ? "Copied" : "Copy"}</span>
+        </motion.button>
       </div>
 
-      <div
-        className="text-[0.85rem] sm:text-[0.95rem] text-zinc-400 whitespace-pre-wrap font-mono font-light leading-[1.6] selection:bg-[#FF5500]/20 selection:text-white"
-        dangerouslySetInnerHTML={{ __html: highlightPrompt(prompt) }}
-      />
+      {/* Prompt body */}
+      <div className="relative z-10 p-6 sm:p-8">
+        <div
+          className="text-[0.95rem] sm:text-[1.05rem] text-zinc-300 whitespace-pre-wrap font-mono font-normal leading-[1.7] overflow-x-auto scrollbar-hide selection:bg-primary/20 selection:text-white"
+          dangerouslySetInnerHTML={{ __html: highlightPrompt(prompt) }}
+        />
+      </div>
 
-      {(where || whyItWorks) && (
-        <div className="mt-6 pt-4 border-t border-white/[0.05] space-y-4">
-          {where && (
-            <div>
-              <span className="text-[0.6rem] font-bold text-white/30 uppercase tracking-widest block mb-1">Context</span>
-              <p className="text-[0.8rem] text-zinc-500 font-light">{where}</p>
-            </div>
-          )}
-          {whyItWorks && (
-            <div>
-              <span className="text-[0.6rem] font-bold text-[#FF5500]/50 uppercase tracking-widest block mb-1">Why It Works</span>
-              <p className="text-[0.8rem] text-zinc-400 font-light italic">{whyItWorks}</p>
-            </div>
-          )}
-        </div>
-      )}
+      {/* Metadata footer — clean & informative */}
+      <AnimatePresence>
+        {(where || whyItWorks) && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="relative z-10 bg-black/20 border-t border-white/[0.04] p-6 sm:p-8 space-y-6"
+          >
+            {where && (
+              <div className="flex items-start gap-4">
+                <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-white/[0.05] border border-white/[0.05]">
+                  <Terminal className="h-3 w-3 text-zinc-400" />
+                </div>
+                <div>
+                  <span className="text-[0.65rem] font-bold text-white/30 uppercase tracking-widest block mb-1">Context</span>
+                  <p className="text-[0.9rem] text-zinc-400 font-light leading-relaxed">{where}</p>
+                </div>
+              </div>
+            )}
+            {whyItWorks && (
+              <div className="flex items-start gap-4">
+                <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-primary/10 border border-primary/20">
+                  <Lightbulb className="h-3 w-3 text-primary" />
+                </div>
+                <div>
+                  <span className="text-[0.65rem] font-bold text-primary/50 uppercase tracking-widest block mb-1">Psychology</span>
+                  <p className="text-[0.9rem] text-zinc-400 font-light leading-relaxed italic">{whyItWorks}</p>
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -265,43 +316,49 @@ export function DataTable({
   rows: (string | ReactNode)[][];
 }) {
   return (
-    <div className="relative w-full my-16 overflow-x-auto">
-      <table className="w-full text-sm min-w-[600px] border-collapse">
-        <thead>
-          <tr className="border-b-2 border-white/10">
-            {headers.map((h, i) => (
-              <th
-                key={i}
-                className="px-4 py-4 text-left text-[0.65rem] font-bold text-white/50 uppercase tracking-[0.2em]"
-              >
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-white/[0.05]">
-          {rows.map((row, ri) => (
-            <tr key={ri} className="group/row hover:bg-white/[0.02] transition-colors">
-              {row.map((cell, ci) => (
-                <td key={ci} className="px-4 py-5 text-[0.95rem] font-light text-zinc-400 align-top">
-                  {ci === 0 ? <span className="text-white font-medium">{cell}</span> : cell}
-                </td>
+    <div className="relative group my-16">
+      <div className="overflow-x-auto rounded-[2rem] border border-white/[0.03] bg-white/[0.01] backdrop-blur-xl shadow-2xl">
+        <table className="w-full text-sm min-w-[600px]">
+          <thead>
+            <tr className="border-b border-white/[0.03] bg-white/[0.01]">
+              {headers.map((h, i) => (
+                <th
+                  key={i}
+                  className="px-8 py-6 text-left text-[0.65rem] font-black text-white/30 uppercase tracking-[0.3em]"
+                >
+                  {h}
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-white/[0.02]">
+            {rows.map((row, ri) => (
+              <tr
+                key={ri}
+                className="transition-colors hover:bg-white/[0.01] group/row"
+              >
+                {row.map((cell, ci) => (
+                  <td key={ci} className="px-8 py-6 text-[1.05rem] font-extralight text-zinc-400 leading-relaxed">
+                    {ci === 0 ? <span className="text-white font-light">{cell}</span> : cell}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
 
 // =============================================================================
-// PHASE CARD - Naked Typography
+// PHASE CARD - With subtle hover glow
 // =============================================================================
 export function PhaseCard({
   phase,
   title,
   description,
+  gradient = "from-primary/10 to-violet-500/10",
   children,
 }: {
   phase: string;
@@ -311,16 +368,24 @@ export function PhaseCard({
   children?: ReactNode;
 }) {
   return (
-    <div className="relative py-12 border-t border-white/[0.05] group/phase">
-      <div className="flex flex-col xl:flex-row gap-6 xl:gap-16 items-start">
-        <div className="w-32 shrink-0">
-          <div className="text-[0.65rem] font-bold uppercase tracking-widest text-white/30 mb-2">Phase</div>
-          <div className="font-mono text-4xl sm:text-5xl font-black text-white">{phase}</div>
+    <div
+      className="group relative rounded-3xl bg-[#05070a] p-8 sm:p-12 overflow-hidden transition-all duration-700 hover:-translate-y-2 border border-white/[0.04] hover:border-primary/30 shadow-2xl"
+    >
+      {/* Background layer */}
+      <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 bg-gradient-to-br ${gradient} transition-opacity duration-1000 pointer-events-none mix-blend-screen`} />
+      
+      <div className="relative z-10 flex flex-col gap-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/[0.02] border border-white/5 font-mono text-2xl font-black text-primary shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)] transition-all duration-700 group-hover:scale-110 group-hover:bg-primary/10 group-hover:border-primary/40 group-hover:shadow-[0_0_30px_rgba(var(--primary-rgb),0.3)]">
+            {phase}
+          </div>
+          <div className="h-px flex-1 bg-gradient-to-r from-white/[0.08] to-transparent hidden sm:block" />
+          <div className="text-[0.65rem] font-bold text-white/30 uppercase tracking-widest">Step Verification</div>
         </div>
 
-        <div className="flex-1 max-w-[65ch]">
-          <h3 className="font-bold text-white text-2xl sm:text-3xl tracking-tight mb-4 group-hover/phase:text-[#FF5500] transition-colors">{title}</h3>
-          <p className="text-[1.1rem] sm:text-[1.2rem] text-zinc-400 leading-relaxed font-light">{description}</p>
+        <div className="max-w-3xl">
+          <h3 className="font-bold text-white text-2xl sm:text-3xl tracking-tight mb-4 group-hover:text-primary transition-colors duration-500">{title}</h3>
+          <p className="text-[1.05rem] sm:text-[1.15rem] text-zinc-400 leading-relaxed font-light">{description}</p>
           {children && <div className="mt-8">{children}</div>}
         </div>
       </div>
@@ -390,7 +455,7 @@ export function TipBox({
 // =============================================================================
 export function ToolPill({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-white/20 bg-white/[0.02] text-white text-[0.8rem] font-mono tracking-tight cursor-help mx-1">
+    <span className="inline-flex items-center px-2.5 py-0.5 rounded border border-white/10 bg-white/[0.04] text-primary text-[0.8rem] font-medium tracking-wide shadow-sm hover:border-primary/40 hover:bg-primary/5 transition-all cursor-help relative -top-px">
       {children}
     </span>
   );
@@ -401,7 +466,7 @@ export function ToolPill({ children }: { children: ReactNode }) {
 // =============================================================================
 export function IC({ children }: { children: ReactNode }) {
   return (
-    <code className="px-1.5 py-0.5 text-zinc-200 text-[0.9em] font-mono font-normal">
+    <code className="px-1.5 py-0.5 rounded bg-white/[0.05] border border-white/10 text-primary text-[0.9em] font-mono font-medium relative -top-px mx-0.5">
       {children}
     </code>
   );
@@ -412,9 +477,10 @@ export function IC({ children }: { children: ReactNode }) {
 // =============================================================================
 export function Hl({ children }: { children: ReactNode }) {
   return (
-    <strong className="font-medium text-white">
+    <span className="font-medium text-white border-b border-primary/40 pb-[1px] relative">
+      <span className="absolute inset-x-0 -bottom-px h-px bg-primary opacity-0 hover:opacity-100 transition-opacity blur-sm" />
       {children}
-    </strong>
+    </span>
   );
 }
 
@@ -423,11 +489,14 @@ export function Hl({ children }: { children: ReactNode }) {
 // =============================================================================
 export function BulletList({ items }: { items: (string | ReactNode)[] }) {
   return (
-    <ul className="space-y-4 my-8 max-w-[65ch]">
+    <ul className="space-y-3 sm:space-y-4 my-6">
       {items.map((item, i) => (
-        <li key={i} className="flex items-start gap-4">
-          <div className="mt-[0.6rem] h-[1px] w-4 bg-[#FF5500]/60 shrink-0" />
-          <span className="text-zinc-400 text-[1.1rem] sm:text-[1.15rem] leading-[1.6] font-light">{item}</span>
+        <li key={i} className="flex items-start gap-3 sm:gap-4 group">
+          <div className="mt-[0.6rem] relative flex items-center justify-center shrink-0">
+            <div className="absolute inset-0 bg-primary/30 blur-[4px] rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            <div className="h-1.5 w-1.5 rounded-full bg-primary group-hover:scale-125 transition-transform duration-300 shadow-[0_0_8px_rgba(var(--primary-rgb),0.6)]" />
+          </div>
+          <span className="text-zinc-300 text-[1.05rem] sm:text-[1.1rem] leading-[1.7] font-light group-hover:text-zinc-100 transition-colors duration-300">{item}</span>
         </li>
       ))}
     </ul>
@@ -439,13 +508,13 @@ export function BulletList({ items }: { items: (string | ReactNode)[] }) {
 // =============================================================================
 export function NumberedList({ items }: { items: (string | ReactNode)[] }) {
   return (
-    <ol className="space-y-6 my-10 max-w-[65ch] counter-reset-list">
+    <ol className="space-y-4 sm:space-y-5 my-8">
       {items.map((item, i) => (
-        <li key={i} className="flex items-start gap-6 relative">
-          <span className="text-[0.8rem] font-mono font-bold text-white/30 shrink-0 mt-1">
-            {(i + 1).toString().padStart(2, '0')}
+        <li key={i} className="flex items-start gap-4 sm:gap-5 group">
+          <span className="flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.03] border border-white/10 text-xs sm:text-sm font-bold text-primary shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)] transition-all duration-300 group-hover:border-primary/40 group-hover:bg-primary/5 group-hover:shadow-[0_0_15px_rgba(var(--primary-rgb),0.2)] group-hover:-translate-y-0.5">
+            {i + 1}
           </span>
-          <span className="text-zinc-400 text-[1.1rem] sm:text-[1.15rem] leading-[1.6] font-light">{item}</span>
+          <span className="text-zinc-300 text-[1.05rem] sm:text-[1.1rem] leading-[1.7] font-light pt-0.5 group-hover:text-zinc-100 transition-colors duration-300">{item}</span>
         </li>
       ))}
     </ol>
@@ -457,12 +526,16 @@ export function NumberedList({ items }: { items: (string | ReactNode)[] }) {
 // =============================================================================
 export function Divider() {
   return (
-    <div className="w-16 h-px bg-white/20 my-24 sm:my-32" />
+    <div className="relative my-20 sm:my-28 flex items-center justify-center">
+      <div className="absolute inset-x-0 h-px bg-gradient-to-r from-transparent via-white/[0.08] to-transparent" />
+      <div className="absolute inset-x-0 h-px w-1/3 mx-auto bg-gradient-to-r from-transparent via-primary/30 to-transparent blur-[1px]" />
+      <div className="relative h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_10px_rgba(var(--primary-rgb),0.8)]" />
+    </div>
   );
 }
 
 // =============================================================================
-// STAT CARD - Naked Typography
+// STAT CARD - For metrics and numbers
 // =============================================================================
 export function StatCard({
   value,
@@ -474,23 +547,26 @@ export function StatCard({
   sublabel?: string;
 }) {
   return (
-    <div className="py-6 border-l-2 border-white/10 pl-6 group/stat transition-colors hover:border-[#FF5500]/40">
-      <div className="text-4xl sm:text-6xl font-black text-white tracking-tighter mb-2 group-hover/stat:text-[#FF5500] transition-colors">
+    <div className="group relative rounded-2xl border border-white/[0.06] bg-[#0A0D14] p-6 sm:p-8 text-center overflow-hidden transition-all duration-500 hover:-translate-y-1 hover:border-primary/30 shadow-xl">
+      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-overlay pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+      <div className="relative z-10 text-3xl sm:text-5xl font-black bg-gradient-to-br from-white via-primary to-violet-400 bg-clip-text text-transparent tracking-tighter drop-shadow-md group-hover:scale-105 transition-transform duration-500">
         {value}
       </div>
-      <div className="text-sm sm:text-base text-zinc-300 font-medium tracking-wide">{label}</div>
-      {sublabel && <div className="mt-1 text-xs sm:text-sm text-zinc-500 font-light">{sublabel}</div>}
+      <div className="relative z-10 mt-3 text-sm sm:text-base text-zinc-300 font-medium tracking-wide uppercase">{label}</div>
+      {sublabel && <div className="relative z-10 mt-1.5 text-xs sm:text-sm text-zinc-500 font-light">{sublabel}</div>}
     </div>
   );
 }
 
 // =============================================================================
-// PRINCIPLE CARD - Naked Typography Dropdown
+// PRINCIPLE CARD - For the 13 key principles
 // =============================================================================
 export function PrincipleCard({
   number,
   title,
   children,
+  gradient,
 }: {
   number: string;
   title: string;
@@ -501,22 +577,32 @@ export function PrincipleCard({
   const hasContent = children !== null && children !== undefined && children !== false;
 
   return (
-    <div className="border-b border-white/[0.05] group/prin">
+    <div
+      className="group relative rounded-2xl border border-white/[0.06] bg-[#0A0D14] overflow-hidden transition-all duration-500 hover:border-primary/30 hover:-translate-y-1 my-6 shadow-xl"
+    >
+      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-overlay pointer-events-none" />
+      
+      {/* Background Texture */}
+      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-overlay pointer-events-none" />
+      
+      {/* Hover glow overlay */}
+      <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 bg-gradient-to-br ${gradient || "from-primary/[0.05] to-transparent"} transition-opacity duration-500 pointer-events-none`} />
+
       <button
         onClick={() => hasContent && setOpen(!open)}
-        className={`w-full py-6 flex items-start sm:items-center gap-6 text-left ${hasContent ? "cursor-pointer" : "cursor-default"}`}
+        className={`w-full relative z-10 flex items-start sm:items-center gap-4 sm:gap-6 p-5 sm:p-7 text-left ${hasContent ? "cursor-pointer" : "cursor-default"}`}
         aria-expanded={open}
         disabled={!hasContent}
       >
-        <div className="font-mono text-xl font-black text-white/40 group-hover/prin:text-white transition-colors w-8">
-          {number}
+        <div className="mt-0.5 sm:mt-0 flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-[#27C93F]/[0.05] border border-[#27C93F]/20 font-mono text-sm sm:text-base font-bold text-[#27C93F] group-hover:scale-105 group-hover:bg-[#27C93F]/10 group-hover:border-[#27C93F]/40 group-hover:shadow-[0_0_20px_rgba(39,201,63,0.2)] transition-all duration-500">
+          <span className="bg-gradient-to-br from-white to-[#27C93F]/30 bg-clip-text text-transparent">{number}</span>
         </div>
         <div className="flex-1 min-w-0">
-          <h4 className="font-bold text-white text-lg sm:text-xl tracking-tight group-hover/prin:text-[#FF5500] transition-colors pr-4">{title}</h4>
+          <h4 className="font-bold text-white text-lg sm:text-xl leading-tight tracking-tight group-hover:text-[#27C93F] transition-colors duration-300 pr-4">{title}</h4>
         </div>
         {hasContent && (
-          <div className="shrink-0 text-white/30 group-hover/prin:text-[#FF5500] transition-colors">
-            {open ? "—" : "+"}
+          <div className="flex items-center justify-center h-8 w-8 rounded-full bg-white/[0.03] border border-white/[0.05] group-hover:bg-primary/10 group-hover:border-primary/20 transition-all duration-300 shrink-0 self-center">
+            <ChevronDown className={`h-4 w-4 text-zinc-400 group-hover:text-primary transition-transform duration-500 ${open ? "rotate-180" : ""}`} />
           </div>
         )}
       </button>
@@ -527,9 +613,9 @@ export function PrincipleCard({
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-            className="overflow-hidden"
+            className="overflow-hidden relative z-10"
           >
-            <div className="pl-14 pb-8 max-w-[65ch] text-zinc-400 text-[1.05rem] leading-[1.6] font-light">
+            <div className="px-5 sm:px-7 pb-6 sm:pb-7 pt-0 text-zinc-300 text-[1rem] sm:text-[1.1rem] leading-[1.7] font-light border-t border-white/[0.04] mt-2 pt-6">
               {children}
             </div>
           </motion.div>
@@ -540,7 +626,7 @@ export function PrincipleCard({
 }
 
 // =============================================================================
-// OPERATOR CARD - Naked Typography
+// OPERATOR CARD - For the 8 operators in Section 21
 // =============================================================================
 export function OperatorCard({
   number,
@@ -558,31 +644,47 @@ export function OperatorCard({
   children?: ReactNode;
 }) {
   return (
-    <div className="py-10 border-l-[3px] border-white/10 pl-6 sm:pl-10 my-12 transition-colors duration-500 hover:border-[#FF5500]/40 group/op">
-      <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-6 mb-6">
-        <div className="font-mono text-xl sm:text-2xl font-black text-[#FF5500] opacity-60 group-hover/op:opacity-100 transition-opacity">
-          {number}
+    <div className="group relative rounded-2xl border border-white/[0.06] bg-[#0A0D14] p-6 sm:p-8 transition-all duration-500 hover:border-[#27C93F]/40 hover:-translate-y-1 my-8 overflow-hidden shadow-xl">
+      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-overlay pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-br from-[#27C93F]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+      
+      {/* Corner glow */}
+      <div className="absolute -top-24 -right-24 h-48 w-48 rounded-full bg-[#27C93F]/10 blur-[60px] opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
+
+      <div className="relative z-10 flex flex-col sm:flex-row items-start gap-5 sm:gap-6">
+        <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-[#27C93F]/[0.05] border border-[#27C93F]/20 font-mono text-sm sm:text-base font-bold text-[#27C93F] group-hover:scale-105 group-hover:bg-[#27C93F]/10 group-hover:border-[#27C93F]/40 group-hover:shadow-[0_0_20px_rgba(39,201,63,0.2)] transition-all duration-500">
+          <span>{number}</span>
         </div>
-        <div>
-          <h4 className="font-bold text-white text-xl sm:text-2xl tracking-tight mb-2">{name}</h4>
-          <p className="text-[1.1rem] text-zinc-400 leading-relaxed font-light max-w-[65ch]">{definition}</p>
+        <div className="min-w-0 flex-1">
+          <h4 className="font-bold text-white text-lg sm:text-xl tracking-tight mb-1.5 group-hover:text-[#27C93F] transition-colors duration-300">{name}</h4>
+          <p className="text-[1rem] sm:text-[1.05rem] text-zinc-300 leading-relaxed font-light">{definition}</p>
         </div>
       </div>
       
-      <div className="space-y-4 max-w-[65ch]">
+      <div className="relative z-10 mt-6 pt-6 border-t border-white/[0.04] space-y-4">
         {trigger && (
-          <div className="flex items-start gap-4">
-            <span className="text-[0.65rem] font-bold uppercase tracking-widest text-[#FF5500] w-24 shrink-0 pt-1">Trigger</span>
-            <span className="text-zinc-300 text-[1.05rem] leading-relaxed font-light">{trigger}</span>
+          <div className="flex items-start gap-4 bg-[#27C93F]/[0.03] rounded-xl p-4 sm:p-5 border border-[#27C93F]/10">
+            <span className="flex items-center justify-center h-6 w-6 rounded-md bg-[#27C93F]/10 text-[#27C93F] shrink-0 mt-0.5">
+              <Zap className="h-3 w-3" />
+            </span>
+            <div>
+              <span className="text-[#27C93F]/80 font-bold uppercase tracking-widest text-[0.65rem] block mb-1">Trigger</span>
+              <span className="text-zinc-300 text-sm sm:text-[0.95rem] leading-relaxed font-light">{trigger}</span>
+            </div>
           </div>
         )}
         {failureMode && (
-          <div className="flex items-start gap-4">
-            <span className="text-[0.65rem] font-bold uppercase tracking-widest text-white/50 w-24 shrink-0 pt-1">Failure</span>
-            <span className="text-zinc-400 text-[1.05rem] leading-relaxed font-light">{failureMode}</span>
+          <div className="flex items-start gap-4 bg-[#FF5F56]/[0.03] rounded-xl p-4 sm:p-5 border border-[#FF5F56]/10">
+            <span className="flex items-center justify-center h-6 w-6 rounded-md bg-[#FF5F56]/10 text-[#FF5F56] shrink-0 mt-0.5">
+              <AlertTriangle className="h-3 w-3" />
+            </span>
+            <div>
+              <span className="text-[#FF5F56]/80 font-bold uppercase tracking-widest text-[0.65rem] block mb-1">Failure Mode</span>
+              <span className="text-zinc-300 text-sm sm:text-[0.95rem] leading-relaxed font-light">{failureMode}</span>
+            </div>
           </div>
         )}
-        {children && <div className="mt-6 pt-6 border-t border-white/[0.05] text-zinc-400 text-[1.05rem] font-light leading-relaxed">{children}</div>}
+        {children && <div className="text-zinc-400 text-[0.95rem] sm:text-[1rem] font-light leading-relaxed pt-2 px-1">{children}</div>}
       </div>
     </div>
   );
@@ -590,7 +692,7 @@ export function OperatorCard({
 
 
 // =============================================================================
-// TABLE OF CONTENTS - Replaced by Floating HUD later, but keep simple for now
+// TABLE OF CONTENTS - Desktop sidebar + mobile drawer
 // =============================================================================
 export function TableOfContents({
   items,

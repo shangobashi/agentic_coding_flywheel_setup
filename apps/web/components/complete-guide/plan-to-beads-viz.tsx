@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { AnimatePresence, motion, useInView, useReducedMotion } from "framer-motion";
-import { Boxes, CheckCircle2, FileText, AlertOctagon, AlertTriangle, Zap } from "lucide-react";
+import { ArrowRight, Boxes, CheckCircle2, FileText, ShieldAlert, AlertOctagon, AlertTriangle, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const EXHIBIT_PANEL_CLASS =
@@ -42,7 +42,7 @@ const PLAN_TO_BEAD_CONCEPTS: readonly PlanConcept[] = [
   {
     id: "upload",
     label: "Upload workflow",
-    color: "#FFFFFF",
+    color: "#22d3ee",
     insight: "Chunking, parser retries, telemetry, and failure surfacing all need to survive the translation.",
     planLine:
       "Users can upload large PDFs, recover from parser failures, and see when ingestion stalls.",
@@ -51,7 +51,7 @@ const PLAN_TO_BEAD_CONCEPTS: readonly PlanConcept[] = [
   {
     id: "search",
     label: "Search behavior",
-    color: "#A1A1AA",
+    color: "#a78bfa",
     insight: "Ranking rules, typo tolerance, empty states, and query explanations cannot be left implicit.",
     planLine:
       "Search needs ranking, typo tolerance, filters, and clear explanations for why a result matched.",
@@ -60,7 +60,7 @@ const PLAN_TO_BEAD_CONCEPTS: readonly PlanConcept[] = [
   {
     id: "admin",
     label: "Operator controls",
-    color: "#52525B",
+    color: "#34d399",
     insight: "Admins need recovery affordances, auditability, and visibility into degraded ingestion paths.",
     planLine:
       "Operators need to inspect stuck jobs, requeue safely, and understand blast radius before touching data.",
@@ -69,7 +69,7 @@ const PLAN_TO_BEAD_CONCEPTS: readonly PlanConcept[] = [
   {
     id: "tests",
     label: "Verification",
-    color: "#3F3F46",
+    color: "#f59e0b",
     insight: "Happy path, edge cases, and failure fixtures have to be part of the bead, not an afterthought.",
     planLine:
       "Every workflow ships with unit tests, end-to-end coverage, and detailed logs for postmortems.",
@@ -81,7 +81,7 @@ const TRANSLATED_BEADS: readonly TranslationBead[] = [
   {
     id: "br-101",
     title: "Upload and Parse Pipeline",
-    color: "#FFFFFF",
+    color: "#22d3ee",
     dependsOn: [],
     coverage: ["upload", "tests"],
     thinSummary: "Build upload flow",
@@ -107,7 +107,7 @@ const TRANSLATED_BEADS: readonly TranslationBead[] = [
   {
     id: "br-102",
     title: "Search Index and Query UX",
-    color: "#A1A1AA",
+    color: "#a78bfa",
     dependsOn: ["br-101"],
     coverage: ["search", "admin", "tests"],
     thinSummary: "Implement search",
@@ -133,7 +133,7 @@ const TRANSLATED_BEADS: readonly TranslationBead[] = [
   {
     id: "br-103",
     title: "Ingestion Failure Dashboard",
-    color: "#52525B",
+    color: "#34d399",
     dependsOn: ["br-101"],
     coverage: ["upload", "admin", "tests"],
     thinSummary: "Add admin dashboard",

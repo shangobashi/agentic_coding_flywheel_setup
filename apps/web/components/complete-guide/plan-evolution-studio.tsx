@@ -1,8 +1,11 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
-import { motion, useInView, useReducedMotion } from "framer-motion";
-import { CheckCircle2 } from "lucide-react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { motion, AnimatePresence, useInView, useReducedMotion } from "framer-motion";
+import { 
+  GitBranch, GitMerge, FileText, CheckCircle2, Circle, 
+  ArrowRight, ShieldCheck, Zap, XOctagon 
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const EXHIBIT_PANEL_CLASS =
@@ -36,7 +39,7 @@ const PLAN_MODEL_DATA: ReadonlyArray<{
   {
     id: "gpt",
     label: "GPT Pro",
-    color: "#FFFFFF",
+    color: "#22d3ee",
     role: "Global arbiter",
     strengths: ["System-wide coherence", "Best-of-all-worlds synthesis"],
     blindSpot:
@@ -52,7 +55,7 @@ const PLAN_MODEL_DATA: ReadonlyArray<{
   {
     id: "claude",
     label: "Claude Opus",
-    color: "#A1A1AA",
+    color: "#a78bfa",
     role: "Implementation realist",
     strengths: ["Execution detail", "Sharp structural edits"],
     blindSpot:
@@ -68,7 +71,7 @@ const PLAN_MODEL_DATA: ReadonlyArray<{
   {
     id: "gemini",
     label: "Gemini",
-    color: "#52525B",
+    color: "#34d399",
     role: "Coverage expander",
     strengths: ["Alternative framings", "Missed edge cases"],
     blindSpot:
@@ -84,7 +87,7 @@ const PLAN_MODEL_DATA: ReadonlyArray<{
   {
     id: "grok",
     label: "Grok Heavy",
-    color: "#3F3F46",
+    color: "#f59e0b",
     role: "Assumption stress-test",
     strengths: ["Counterintuitive options", "Pressure-testing assumptions"],
     blindSpot:
@@ -158,8 +161,8 @@ export function PlanEvolutionStudio() {
 
       <div className="relative z-10 flex flex-col gap-6 border-b border-white/[0.04] bg-white/[0.01] p-6 sm:p-8 backdrop-blur-md lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <div className="text-[0.65rem] font-bold uppercase tracking-widest text-[#FF5500]/80 flex items-center gap-2 mb-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#FF5500] animate-pulse shadow-[0_0_8px_rgba(255,85,0,0.8)]" />
+          <div className="text-[0.65rem] font-bold uppercase tracking-widest text-cyan-400/80 flex items-center gap-2 mb-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_rgba(34,211,238,0.8)]" />
             Interactive Studio
           </div>
           <h4 className="text-xl font-black tracking-tight text-white sm:text-2xl">
@@ -187,9 +190,9 @@ export function PlanEvolutionStudio() {
               value={refinementRound}
               onChange={(event) => setRefinementRound(Number(event.target.value))}
               aria-label="Refinement round"
-              className="h-2 w-full cursor-ew-resize appearance-none rounded-full bg-white/10 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-[#0A0D14] [&::-webkit-slider-thumb]:bg-[#FF5500] [&::-webkit-slider-thumb]:shadow-[0_0_15px_rgba(255,85,0,0.6)] hover:[&::-webkit-slider-thumb]:scale-110 [&::-webkit-slider-thumb]:transition-transform relative z-10"
+              className="h-2 w-full cursor-ew-resize appearance-none rounded-full bg-white/10 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-[#0A0D14] [&::-webkit-slider-thumb]:bg-cyan-400 [&::-webkit-slider-thumb]:shadow-[0_0_15px_rgba(34,211,238,0.6)] hover:[&::-webkit-slider-thumb]:scale-110 [&::-webkit-slider-thumb]:transition-transform relative z-10"
               style={{
-                background: `linear-gradient(to right, rgba(255,85,0,0.5) ${(refinementRound / 4) * 100}%, rgba(255,255,255,0.05) ${(refinementRound / 4) * 100}%)`
+                background: `linear-gradient(to right, rgba(34,211,238,0.5) ${(refinementRound / 4) * 100}%, rgba(255,255,255,0.05) ${(refinementRound / 4) * 100}%)`
               }}
             />
           </div>
@@ -281,11 +284,11 @@ export function PlanEvolutionStudio() {
                   {totalScore}%
                 </div>
               </div>
-              <div className="rounded-xl border border-[#FF5500]/20 bg-[#FF5500]/10 px-5 py-3 text-right shadow-inner">
-                <div className="text-[0.65rem] font-bold uppercase tracking-widest text-[#FF5500]/70">
+              <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-5 py-3 text-right shadow-inner">
+                <div className="text-[0.65rem] font-bold uppercase tracking-widest text-cyan-400/70">
                   Active Inputs
                 </div>
-                <div className="mt-1 text-2xl font-black text-[#FF5500]">
+                <div className="mt-1 text-2xl font-black text-cyan-400">
                   {selectedModels.length}
                 </div>
               </div>
@@ -343,9 +346,9 @@ export function PlanEvolutionStudio() {
                   ))}
                 </div>
 
-                <div className="mt-6 rounded-xl border border-[#FF5500]/20 bg-[#FF5500]/10 px-4 py-3 text-sm leading-relaxed text-[#FF5500] font-medium">
+                <div className="mt-6 rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm leading-relaxed text-cyan-400 font-medium">
                   Round {refinementRound + 1}:{" "}
-                  <span className="font-light text-[#FF5500]/80">
+                  <span className="font-light text-cyan-400/80">
                     {refinementRound < 2
                       ? "The plan is still absorbing strengths and closing obvious gaps."
                       : refinementRound < 4
@@ -370,7 +373,7 @@ export function PlanEvolutionStudio() {
                   </div>
                   <div className="h-2 rounded-full bg-[#020408] border border-white/[0.04] shadow-inner overflow-hidden">
                     <motion.div
-                      className="h-full bg-gradient-to-r from-[#FF5500] via-violet-400 to-emerald-400 shadow-[0_0_10px_rgba(255,85,0,0.5)]"
+                      className="h-full bg-gradient-to-r from-cyan-400 via-violet-400 to-emerald-400 shadow-[0_0_10px_rgba(34,211,238,0.5)]"
                       initial={reducedMotion ? { width: `${dimension.value}%` } : { width: 0 }}
                       animate={{ width: `${dimension.value}%` }}
                       transition={{ duration: 0.75, type: "spring", bounce: 0 }}

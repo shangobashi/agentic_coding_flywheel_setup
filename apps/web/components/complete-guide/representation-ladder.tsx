@@ -12,7 +12,7 @@ const LADDER_LAYERS = [
   {
     id: "plan",
     label: "Plan Space",
-    color: "#FFFFFF",
+    color: "#22d3ee",
     width: 95,
     cost: "1x",
     desc: "Fix the prose, rethink the architecture, and keep the blast radius confined to reasoning.",
@@ -20,7 +20,7 @@ const LADDER_LAYERS = [
   {
     id: "bead",
     label: "Bead Space",
-    color: "#A1A1AA",
+    color: "#a78bfa",
     width: 70,
     cost: "5x",
     desc: "Revise boundaries, dependencies, and acceptance criteria across executable work packets.",
@@ -49,9 +49,9 @@ export function RepresentationLadder() {
     <div ref={ref} className={EXHIBIT_PANEL_CLASS}>
       <div className="flex flex-col gap-10 border-b border-white/[0.03] pb-12 lg:flex-row lg:items-start lg:justify-between">
         <div className="max-w-2xl">
-          <div className="text-[0.65rem] font-black uppercase tracking-[0.4em] text-[#FF5500] opacity-60 flex items-center gap-3">
-            <div className="w-8 h-px bg-[#FF5500]/30" />
-            Interactive Visualization
+          <div className="text-[0.65rem] font-black uppercase tracking-[0.4em] text-cyan-400 opacity-60 flex items-center gap-3">
+            <div className="w-8 h-px bg-cyan-400/30" />
+            Failure Economics
           </div>
           <h4 className="mt-6 text-3xl font-black tracking-[-0.04em] text-white sm:text-4xl lg:text-5xl leading-[1.1]">
             Where you catch the bug determines the rework bill
@@ -106,7 +106,7 @@ export function RepresentationLadder() {
                       borderColor: isBugSource 
                         ? '#ef4444' 
                         : isCascade 
-                          ? '#3F3F46' 
+                          ? '#f59e0b' 
                           : 'rgba(255,255,255,0.03)',
                       background: isBugSource 
                         ? 'rgba(239, 68, 68, 0.05)' 

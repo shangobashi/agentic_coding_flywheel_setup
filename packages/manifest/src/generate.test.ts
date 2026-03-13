@@ -358,7 +358,7 @@ describe('doctor_checks.sh content', () => {
   });
 
   test('uses tab delimiter for check entries', () => {
-    // The format is: ID<TAB>DESCRIPTION<TAB>CHECK_COMMAND<TAB>REQUIRED/OPTIONAL
+    // The format is: ID<TAB>DESCRIPTION<TAB>CHECK_COMMAND<TAB>REQUIRED/OPTIONAL<TAB>RUN_AS
     // Tab character should be present in the entries
     expect(doctorContent).toContain('\\t');
   });
@@ -369,6 +369,11 @@ describe('doctor_checks.sh content', () => {
     const nvmLine = doctorContent.match(/^    "lang\.nvm[^\n]*"$/m);
     expect(nvmLine).not.toBeNull();
     expect(nvmLine![0]).toContain('\\\\n');
+  });
+
+  test('includes run_as context for generated checks', () => {
+    expect(doctorContent).toMatch(/lang\.bun[^\n]*\ttarget_user"/);
+    expect(doctorContent).toMatch(/base\.system\.1[^\n]*\troot"/);
   });
 });
 

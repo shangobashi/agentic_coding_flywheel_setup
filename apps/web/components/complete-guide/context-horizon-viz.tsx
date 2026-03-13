@@ -100,14 +100,14 @@ export function ContextHorizonViz() {
               "w-full rounded-t-2xl relative overflow-hidden flex items-end justify-center pb-6 transition-all duration-500 border-t border-l border-r backdrop-blur-sm",
               isCodeBlowingHorizon 
                 ? "bg-gradient-to-t from-[#FF5F56]/10 to-[#FF5F56]/5 border-[#FF5F56]/40 shadow-[0_0_50px_rgba(255,95,86,0.25)]" 
-                : "bg-gradient-to-t from-[#FF5500]/10 to-[#FF5500]/5 border-[#FF5500]/30 shadow-[0_0_40px_rgba(255,85,0,0.15)]"
+                : "bg-gradient-to-t from-cyan-500/10 to-cyan-500/5 border-cyan-500/30 shadow-[0_0_40px_rgba(34,211,238,0.15)]"
             )}
             animate={isInView ? { height: codeSize } : undefined}
             transition={rm ? { duration: 0 } : { type: "spring", stiffness: 150, damping: 20, mass: 0.8 }}
           >
             <div className={cn(
               "absolute inset-x-0 top-0 h-px opacity-50 transition-colors duration-500",
-              isCodeBlowingHorizon ? "bg-gradient-to-r from-transparent via-[#FF5F56] to-transparent" : "bg-gradient-to-r from-transparent via-[#FF5500] to-transparent"
+              isCodeBlowingHorizon ? "bg-gradient-to-r from-transparent via-[#FF5F56] to-transparent" : "bg-gradient-to-r from-transparent via-cyan-400 to-transparent"
             )} />
 
             {/* Warning overlay when exceeding context */}
@@ -117,14 +117,14 @@ export function ContextHorizonViz() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPSc4JyBoZWlnaHQ9JzgnPgo8cmVjdCB3aWR0aD0nOCcgaGVpZ2h0PSc4JyBmaWxsPScjZmZmJyBmaWxsLW9wYWNpdHk9JzAuMDInLz4KPHBhdGggZD0nTTAgMEw0IDRMMCA0IDBaJyBzdHJva2U9JyNlZjQ0NDQnIHN0cm9rZS13aWR0aD0nMC41JyBzdHJva2Utb3BhY2l0eT0nMC4zJy8+Cjwvc3ZnPg==')] pointer-events-none"
+                  className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPSc4JyBoZWlnaHQ9JzgnPgo8cmVjdCB3aWR0aD0nOCcgaGVpZ2h0PSc4JyBmaWxsPScjZmZmJyBmaWxsLW9wYWNpdHk9JzAuMDInLz4KPHBhdGggZD0nTTAgMEw4IDhaTTAgOEw4IDBaJyBzdHJva2U9JyNlZjQ0NDQnIHN0cm9rZS13aWR0aD0nMC41JyBzdHJva2Utb3BhY2l0eT0nMC4zJy8+Cjwvc3ZnPg==')] pointer-events-none"
                 />
               )}
             </AnimatePresence>
             
             <FileCode2 className={cn(
               "h-10 w-10 relative z-10 transition-all duration-500 opacity-90",
-              isCodeBlowingHorizon ? "text-[#FF5F56] drop-shadow-[0_0_10px_rgba(255,95,86,0.5)]" : "text-[#FF5500] drop-shadow-[0_0_10px_rgba(255,85,0,0.5)]"
+              isCodeBlowingHorizon ? "text-[#FF5F56] drop-shadow-[0_0_10px_rgba(255,95,86,0.5)]" : "text-cyan-400 drop-shadow-[0_0_10px_rgba(34,211,238,0.5)]"
             )} />
           </motion.div>
           
@@ -132,7 +132,7 @@ export function ContextHorizonViz() {
             <div className="text-xs sm:text-sm font-black text-white tracking-widest uppercase">Code Space</div>
             <div className={cn(
               "text-[0.65rem] sm:text-xs font-mono mt-1.5 flex items-center justify-center gap-1.5 rounded-full px-2 py-0.5 border transition-colors duration-500",
-              isCodeBlowingHorizon ? "text-[#FF5F56] bg-[#FF5F56]/10 border-[#FF5F56]/20" : "text-[#FF5500] bg-[#FF5500]/10 border-[#FF5500]/20"
+              isCodeBlowingHorizon ? "text-[#FF5F56] bg-[#FF5F56]/10 border-[#FF5F56]/20" : "text-cyan-400 bg-cyan-400/10 border-cyan-400/20"
             )}>
               {isCodeBlowingHorizon ? (
                 <><AlertOctagon className="h-3 w-3" /> Truncated</>

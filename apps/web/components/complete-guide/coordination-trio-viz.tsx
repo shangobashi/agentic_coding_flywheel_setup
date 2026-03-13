@@ -13,7 +13,7 @@ const TRIO_TOOLS = [
     id: "beads",
     label: "Beads",
     sub: "(br)",
-    color: "#A1A1AA",
+    color: "#a78bfa",
     x: 300,
     y: 80,
     desc: "The task graph is the system memory for what work exists and what depends on what.",
@@ -24,7 +24,7 @@ const TRIO_TOOLS = [
     id: "mail",
     label: "Agent Mail",
     sub: "",
-    color: "#FFFFFF",
+    color: "#22d3ee",
     x: 140,
     y: 300,
     desc: "Mail threads and file reservations let many agents coordinate without smashing into each other.",
@@ -35,7 +35,7 @@ const TRIO_TOOLS = [
     id: "bv",
     label: "bv",
     sub: "",
-    color: "#52525B",
+    color: "#34d399",
     x: 460,
     y: 300,
     desc: "Graph analysis turns the bead graph into a prioritization compass instead of a flat backlog.",
@@ -102,7 +102,7 @@ export function CoordinationTrioViz() {
 
       <div className="mt-16 grid gap-12 xl:grid-cols-[1.2fr_0.8fr] items-center">
         <div className="relative aspect-square sm:aspect-video xl:aspect-square flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(255,85,0,0.1),transparent_70%)] pointer-events-none" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(167,139,250,0.05),transparent_70%)]" />
           
           <motion.svg
             viewBox="0 0 600 380"
@@ -210,9 +210,8 @@ export function CoordinationTrioViz() {
             <div className="mt-8 flex flex-col gap-6">
               {[
                 { l: "Beads", t: "The canonical memory of pending work.", c: "text-violet-400" },
-                { l: "Agent Mail", t: "The high-bandwidth negotiation layer.", c: "text-[#FF5500]" },
-                { l: "br", t: "The durable, localized issue state.", c: "text-[#a855f7]" },
-                { l: "bv", t: "The graph-aware prioritization engine.", c: "text-[#71717A]" },
+                { l: "Agent Mail", t: "The high-bandwidth negotiation layer.", c: "text-cyan-400" },
+                { l: "bv", t: "The graph-theory compass for triage.", c: "text-emerald-400" },
               ].map((item, i) => (
                 <div key={i} className="flex flex-col gap-1">
                   <span className={`text-[0.7rem] font-bold tracking-wide ${item.c} opacity-80`}>{item.l}</span>

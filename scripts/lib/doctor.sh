@@ -1707,6 +1707,56 @@ _manifest_module_id() {
     fi
 }
 
+_doctor_run_manifest_check() {
+    local run_as="$1"
+    local cmd="$2"
+    local target_user="${TARGET_USER:-ubuntu}"
+    local target_home="${TARGET_HOME:-}"
+    local target_path=""
+
+    if [[ -z "$target_home" ]]; then
+        if [[ "$target_user" == "root" ]]; then
+            target_home="/root"
+        else
+            target_home="/home/$target_user"
+        fi
+    fi
+
+    target_path="$target_home/.local/bin:$target_home/.acfs/bin:$target_home/.bun/bin:$target_home/.cargo/bin:$target_home/.atuin/bin:$target_home/go/bin:${PATH:-/usr/local/bin:/usr/bin:/bin}"
+
+    case "$run_as" in
+        target_user)
+            if [[ "$(id -un 2>/dev/null || true)" == "$target_user" ]]; then
+                HOME="$target_home" PATH="$target_path" bash -o pipefail -c "$cmd"
+                return $?
+            fi
+            if [[ $EUID -eq 0 ]] && command -v runuser >/dev/null 2>&1; then
+                runuser -u "$target_user" -- env HOME="$target_home" PATH="$target_path" bash -o pipefail -c "$cmd"
+                return $?
+            fi
+            if command -v sudo >/dev/null 2>&1; then
+                sudo -n -u "$target_user" env HOME="$target_home" PATH="$target_path" bash -o pipefail -c "$cmd"
+                return $?
+            fi
+            return 1
+            ;;
+        root)
+            if [[ $EUID -eq 0 ]]; then
+                bash -o pipefail -c "$cmd"
+                return $?
+            fi
+            if command -v sudo >/dev/null 2>&1; then
+                sudo -n env PATH="${PATH:-/usr/local/bin:/usr/bin:/bin}" bash -o pipefail -c "$cmd"
+                return $?
+            fi
+            return 1
+            ;;
+        current|*)
+            bash -o pipefail -c "$cmd"
+            ;;
+    esac
+}
+
 # Run manifest checks that are NOT already covered by bespoke functions.
 # Integrates with the standard check() output (JSON/gum/plain) so the results
 # are indistinguishable from hand-written checks.  Failed checks include a
@@ -1718,7 +1768,7 @@ check_manifest_supplemental() {
     local printed_section=false
 
     for entry in "${MANIFEST_CHECKS[@]}"; do
-        IFS=$'\t' read -r id desc cmd req_flag <<< "$entry"
+        IFS=$'\t' read -r id desc cmd req_flag run_as <<< "$entry"
 
         # Skip checks already covered by bespoke functions
         _is_bespoke_covered "$id" && continue
@@ -1731,6 +1781,7 @@ check_manifest_supplemental() {
 
         # Decode printf escapes (\n, \t, \\) embedded by the generator
         cmd="$(printf '%b' "$cmd")"
+        run_as="${run_as:-current}"
 
         # Build a human-readable label from the check command.
         # For most entries the first word is the binary name (curl, lazygit, apr).
@@ -1754,8 +1805,8 @@ check_manifest_supplemental() {
         local fix
         fix="$(fix_for_module "$module_id")"
 
-        # Execute the check command in a subshell
-        if bash -o pipefail -c "$cmd" &>/dev/null; then
+        # Execute the check command in the same context the manifest expects.
+        if _doctor_run_manifest_check "$run_as" "$cmd" &>/dev/null; then
             check "$id" "$tool_name" "pass" "$desc"
         elif [[ "$req_flag" == "optional" ]]; then
             # Optional tools use "warn" status (not critical failures)

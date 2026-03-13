@@ -1213,7 +1213,7 @@ function generateCategoryScript(manifest: Manifest, category: ModuleCategory): s
 function generateDoctorChecks(manifest: Manifest): string {
   const lines: string[] = [HEADER];
   lines.push('# Doctor checks generated from manifest');
-  lines.push('# Format: ID<TAB>DESCRIPTION<TAB>CHECK_COMMAND<TAB>REQUIRED/OPTIONAL');
+  lines.push('# Format: ID<TAB>DESCRIPTION<TAB>CHECK_COMMAND<TAB>REQUIRED/OPTIONAL<TAB>RUN_AS');
   lines.push('# Using tab delimiter to avoid conflicts with | in shell commands');
   lines.push('# Commands are encoded (\\n, \\t, \\\\) and decoded via printf before execution');
   lines.push('');
@@ -1236,11 +1236,62 @@ function generateDoctorChecks(manifest: Manifest): string {
       const encodedCmd = encodeDoctorCommand(cleanCmd);
 
       // Use tab delimiter (\t) instead of pipe to avoid conflicts with || in commands
-      lines.push(`    "${checkId}${suffix}\t${description}\t${escapeBash(encodedCmd)}\t${isOptional ? 'optional' : 'required'}"`);
+      lines.push(`    "${checkId}${suffix}\t${description}\t${escapeBash(encodedCmd)}\t${isOptional ? 'optional' : 'required'}\t${module.run_as}"`);
     }
   }
 
   lines.push(')');
+  lines.push('');
+  lines.push('# Execute a manifest check in the requested context without prompting.');
+  lines.push('run_manifest_check_command() {');
+  lines.push('    local run_as="$1"');
+  lines.push('    local cmd="$2"');
+  lines.push('    local target_user="${TARGET_USER:-ubuntu}"');
+  lines.push('    local target_home="${TARGET_HOME:-}"');
+  lines.push('    local target_path=""');
+  lines.push('');
+  lines.push('    if [[ -z "$target_home" ]]; then');
+  lines.push('        if [[ "$target_user" == "root" ]]; then');
+  lines.push('            target_home="/root"');
+  lines.push('        else');
+  lines.push('            target_home="/home/$target_user"');
+  lines.push('        fi');
+  lines.push('    fi');
+  lines.push('');
+  lines.push('    target_path="$target_home/.local/bin:$target_home/.acfs/bin:$target_home/.bun/bin:$target_home/.cargo/bin:$target_home/.atuin/bin:$target_home/go/bin:${PATH:-/usr/local/bin:/usr/bin:/bin}"');
+  lines.push('');
+  lines.push('    case "$run_as" in');
+  lines.push('        target_user)');
+  lines.push('            if [[ "$(id -un 2>/dev/null || true)" == "$target_user" ]]; then');
+  lines.push('                HOME="$target_home" PATH="$target_path" bash -o pipefail -c "$cmd"');
+  lines.push('                return $?');
+  lines.push('            fi');
+  lines.push('            if [[ $EUID -eq 0 ]] && command -v runuser >/dev/null 2>&1; then');
+  lines.push('                runuser -u "$target_user" -- env HOME="$target_home" PATH="$target_path" bash -o pipefail -c "$cmd"');
+  lines.push('                return $?');
+  lines.push('            fi');
+  lines.push('            if command -v sudo >/dev/null 2>&1; then');
+  lines.push('                sudo -n -u "$target_user" env HOME="$target_home" PATH="$target_path" bash -o pipefail -c "$cmd"');
+  lines.push('                return $?');
+  lines.push('            fi');
+  lines.push('            return 1');
+  lines.push('            ;;');
+  lines.push('        root)');
+  lines.push('            if [[ $EUID -eq 0 ]]; then');
+  lines.push('                bash -o pipefail -c "$cmd"');
+  lines.push('                return $?');
+  lines.push('            fi');
+  lines.push('            if command -v sudo >/dev/null 2>&1; then');
+  lines.push('                sudo -n env PATH="${PATH:-/usr/local/bin:/usr/bin:/bin}" bash -o pipefail -c "$cmd"');
+  lines.push('                return $?');
+  lines.push('            fi');
+  lines.push('            return 1');
+  lines.push('            ;;');
+  lines.push('        current|*)');
+  lines.push('            bash -o pipefail -c "$cmd"');
+  lines.push('            ;;');
+  lines.push('    esac');
+  lines.push('}');
   lines.push('');
 
   // Add helper function
@@ -1252,16 +1303,13 @@ function generateDoctorChecks(manifest: Manifest): string {
   lines.push('');
   lines.push('    for check in "${MANIFEST_CHECKS[@]}"; do');
   lines.push('        # Use tab as delimiter (safe - won\'t appear in commands)');
-  lines.push('        IFS=$\'\\t\' read -r id desc cmd optional <<< "$check"');
+  lines.push('        IFS=$\'\\t\' read -r id desc cmd optional run_as <<< "$check"');
   lines.push('        cmd="$(printf \'%b\' "$cmd")"');
+  lines.push('        run_as="${run_as:-current}"');
   lines.push('        ');
-  // Run checks in a subshell to avoid leaking side effects into this script.
-  // Enable pipefail so pipeline-based checks behave as expected.
-  // Run the command string in a fresh bash so quoted commands remain intact.
-  // Use `bash -o pipefail -c "$cmd"` (NOT `bash -c "… $cmd"`) to avoid breaking
-  // when `$cmd` itself contains quotes.
+  // Run checks in the proper execution context while keeping the script non-interactive.
   // Use ${ACFS_*-default} to respect NO_COLOR (empty preserves empty). Related: bd-39ye
-  lines.push('        if bash -o pipefail -c "$cmd" &>/dev/null; then');
+  lines.push('        if run_manifest_check_command "$run_as" "$cmd" &>/dev/null; then');
   lines.push('            echo -e "${ACFS_GREEN-\\033[0;32m}[ok]${ACFS_NC-\\033[0m} $id - $desc"');
   lines.push('            ((passed += 1))');
   lines.push('        elif [[ "$optional" = "optional" ]]; then');

@@ -21,9 +21,9 @@ function getConvergenceVerdict(s: number) {
 }
 
 const CONVERGENCE_SIGNALS = [
-  { id: "size", label: "Output Size Shrinking", weight: 0.35, weightLabel: "35%", color: "#FFFFFF" },
-  { id: "velocity", label: "Change Velocity Slowing", weight: 0.35, weightLabel: "35%", color: "#A1A1AA" },
-  { id: "similarity", label: "Content Similarity Rising", weight: 0.30, weightLabel: "30%", color: "#52525B" },
+  { id: "size", label: "Output Size Shrinking", weight: 0.35, weightLabel: "35%", color: "#38bdf8" },
+  { id: "velocity", label: "Change Velocity Slowing", weight: 0.35, weightLabel: "35%", color: "#a78bfa" },
+  { id: "similarity", label: "Content Similarity Rising", weight: 0.30, weightLabel: "30%", color: "#34d399" },
 ] as const;
 
 export function ConvergenceViz() {
@@ -150,7 +150,7 @@ export function ConvergenceViz() {
             {/* Background glowing orb representing the target state */}
             <motion.div 
               className="absolute w-20 h-20 rounded-full blur-[30px] pointer-events-none mix-blend-screen"
-              style={{ backgroundColor: score > 0.8 ? "#52525B" : score > 0.5 ? "#A1A1AA" : "#FFFFFF" }}
+              style={{ backgroundColor: score > 0.8 ? "#34d399" : score > 0.5 ? "#a78bfa" : "#38bdf8" }}
               animate={{ 
                 scale: 1 + score * 1.5,
                 opacity: score * 0.4 + 0.1
@@ -174,7 +174,7 @@ export function ConvergenceViz() {
                   const y = center + Math.sin(p.angle) * currentRad;
                   
                   // Color changes based on how tight the convergence is
-                  const color = score > 0.8 ? "#52525B" : score > 0.5 ? "#A1A1AA" : "#FFFFFF";
+                  const color = score > 0.8 ? "#34d399" : score > 0.5 ? "#a78bfa" : "#38bdf8";
 
                   return (
                     <motion.div

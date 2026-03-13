@@ -6,7 +6,7 @@ import { Check, Copy, Terminal, CheckCircle2, Server, Monitor } from "lucide-rea
 import { motion, AnimatePresence } from "@/components/motion";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { cn, safeGetItem, safeSetItem } from "@/lib/utils";
+import { cn, safeGetItem, safeSetItem, copyTextToClipboard } from "@/lib/utils";
 import { useDetectedOS, useUserOS } from "@/lib/userPreferences";
 import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
 import { springs } from "@/components/motion";
@@ -207,27 +207,8 @@ export function CommandCard({
   }, []);
 
   const handleCopy = useCallback(async () => {
-    let copiedOk = false;
     setCopyAnimation(true);
-    try {
-      await navigator.clipboard.writeText(displayCommand);
-      copiedOk = true;
-    } catch {
-      // Fallback for older browsers
-      const textarea = document.createElement("textarea");
-      textarea.value = displayCommand;
-      textarea.style.position = "fixed";
-      textarea.style.opacity = "0";
-      document.body.appendChild(textarea);
-      try {
-        textarea.select();
-        copiedOk = document.execCommand("copy");
-      } catch {
-        copiedOk = false;
-      } finally {
-        document.body.removeChild(textarea);
-      }
-    }
+    const copiedOk = await copyTextToClipboard(displayCommand);
     if (!copiedOk) {
       setCopyAnimation(false);
       return;
@@ -423,26 +404,7 @@ export function CodeBlock({
   }, []);
 
   const handleCopy = useCallback(async () => {
-    let copiedOk = false;
-    try {
-      await navigator.clipboard.writeText(code);
-      copiedOk = true;
-    } catch {
-      // Fallback
-      const textarea = document.createElement("textarea");
-      textarea.value = code;
-      textarea.style.position = "fixed";
-      textarea.style.opacity = "0";
-      document.body.appendChild(textarea);
-      try {
-        textarea.select();
-        copiedOk = document.execCommand("copy");
-      } catch {
-        copiedOk = false;
-      } finally {
-        document.body.removeChild(textarea);
-      }
-    }
+    const copiedOk = await copyTextToClipboard(code);
     if (!copiedOk) {
       return;
     }

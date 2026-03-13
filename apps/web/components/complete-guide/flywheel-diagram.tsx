@@ -19,7 +19,7 @@ export function FlywheelDiagram() {
       short: "Goals + workflows",
       x: 320,
       y: 68,
-      color: "#FFFFFF",
+      color: "#22d3ee",
       input: "Raw desire and taste",
       output: "Explicit constraints and workflows",
       effect: "Human judgment compresses ambiguity before any downstream artifact starts drifting.",
@@ -30,7 +30,7 @@ export function FlywheelDiagram() {
       short: "Whole-system reasoning",
       x: 518,
       y: 154,
-      color: "#A1A1AA",
+      color: "#a78bfa",
       input: "Clarified goals",
       output: "A design that still fits in context",
       effect: "Architecture gets settled while global reasoning is still cheap and actually possible.",
@@ -41,7 +41,7 @@ export function FlywheelDiagram() {
       short: "Executable memory",
       x: 452,
       y: 336,
-      color: "#71717A",
+      color: "#f472b6",
       input: "Approved plan decisions",
       output: "Self-contained work packets",
       effect: "Context leaves prose and enters the execution graph where fresh agents can actually use it.",
@@ -52,7 +52,7 @@ export function FlywheelDiagram() {
       short: "Parallel implementation",
       x: 188,
       y: 336,
-      color: "#52525B",
+      color: "#34d399",
       input: "Prioritized ready beads",
       output: "Code, tests, reviews, commits",
       effect: "Fungible agents stay busy on the frontier instead of improvising their own architecture.",
@@ -194,9 +194,9 @@ export function FlywheelDiagram() {
             />
             <defs>
               <linearGradient id="orbitGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#FFFFFF" stopOpacity="1" />
-                <stop offset="50%" stopColor="#A1A1AA" stopOpacity="1" />
-                <stop offset="100%" stopColor="#71717A" stopOpacity="1" />
+                <stop offset="0%" stopColor="#22d3ee" stopOpacity="1" />
+                <stop offset="50%" stopColor="#a78bfa" stopOpacity="1" />
+                <stop offset="100%" stopColor="#f472b6" stopOpacity="1" />
               </linearGradient>
               <filter id="nodeGlow">
                 <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
