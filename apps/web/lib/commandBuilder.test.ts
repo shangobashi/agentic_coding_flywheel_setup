@@ -62,7 +62,7 @@ describe("buildShareURL", () => {
     Object.defineProperty(globalThis, "window", {
       value: {
         location: {
-          href: "https://acfs.dev/wizard/launch-onboarding?handoff=status-check",
+          href: "https://acfs.dev/wizard/launch-onboarding?utm_source=share",
           origin: "https://acfs.dev",
           pathname: "/wizard/launch-onboarding",
         },
@@ -80,7 +80,7 @@ describe("buildShareURL", () => {
       });
 
       expect(shareURL).toBe("https://acfs.dev/wizard/launch-onboarding?ip=10.20.30.40&os=mac&mode=vibe");
-      expect(shareURL).not.toContain("handoff=");
+      expect(shareURL).not.toContain("utm_source=");
     } finally {
       Object.defineProperty(globalThis, "window", {
         value: originalWindow,

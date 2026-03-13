@@ -14,6 +14,7 @@
  */
 
 import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { safeGetItem, safeSetItem } from "@/lib/utils";
 
 export type ThemeMode = "dark" | "light" | "system";
 export type ResolvedTheme = "dark" | "light";
@@ -33,8 +34,7 @@ function resolveTheme(mode: ThemeMode): ResolvedTheme {
 
 /** Read the stored theme mode from localStorage. */
 function getStoredMode(): ThemeMode {
-  if (typeof window === "undefined") return "dark";
-  const stored = localStorage.getItem(STORAGE_KEY);
+  const stored = safeGetItem(STORAGE_KEY);
   if (stored === "dark" || stored === "light" || stored === "system") {
     return stored;
   }
@@ -89,7 +89,7 @@ export function useTheme() {
   const resolved = resolveTheme(mode);
 
   const setMode = useCallback((newMode: ThemeMode) => {
-    localStorage.setItem(STORAGE_KEY, newMode);
+    safeSetItem(STORAGE_KEY, newMode);
     applyTheme(resolveTheme(newMode));
     notify();
   }, []);

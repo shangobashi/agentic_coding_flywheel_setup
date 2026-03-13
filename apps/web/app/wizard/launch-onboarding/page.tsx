@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { PartyPopper, BookOpen, ExternalLink, Sparkles, ArrowRight, GraduationCap, Terminal, RefreshCw, FolderPlus, FolderOpen } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { CommandCard, CodeBlock } from "@/components/command-card";
@@ -91,9 +91,7 @@ function ConfettiParticle({ delay, left, color, size, rotation, duration, isRoun
 
 export default function LaunchOnboardingStep() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [isUnlocked, setIsUnlocked] = useState(false);
-  const hasStatusCheckHandoff = searchParams?.get("handoff") === "status-check";
 
   // Analytics tracking for this wizard step
   const { markComplete } = useWizardAnalytics({
@@ -115,9 +113,7 @@ export default function LaunchOnboardingStep() {
   // through the normal flow. A direct visit/bookmark should not unlock the wizard.
   useEffect(() => {
     const completedSteps = getCompletedSteps();
-    const canAccess =
-      hasStatusCheckHandoff ||
-      (completedSteps.includes(12) && validateStep(12).valid);
+    const canAccess = completedSteps.includes(12) && validateStep(12).valid;
 
     if (!canAccess) {
       router.replace(withCurrentSearch("/wizard/status-check"));
@@ -131,7 +127,7 @@ export default function LaunchOnboardingStep() {
     // Use setTimeout to avoid the ESLint set-state-in-effect rule, since
     // this unlock is logically part of the navigation guard check above.
     setTimeout(() => setIsUnlocked(true), 0);
-  }, [hasStatusCheckHandoff, markComplete, router]);
+  }, [markComplete, router]);
 
   if (!isUnlocked || !sshUsernameLoaded) {
     return (

@@ -43,6 +43,7 @@ import {
   FeatureCard,
   FeatureGrid,
 } from "./lesson-components";
+import { copyTextToClipboard } from "@/lib/utils";
 
 export function CassLesson() {
   return (
@@ -1101,10 +1102,8 @@ function InteractiveSessionSearch() {
     runSearch(next);
   }, [activeScenarioIdx, runSearch]);
 
-  const handleCopy = useCallback((hitId: string, text: string) => {
-    void navigator.clipboard.writeText(text).catch(() => {
-      // Clipboard not available
-    });
+  const handleCopy = useCallback(async (hitId: string, text: string) => {
+    await copyTextToClipboard(text);
     setCopiedId(hitId);
     pushTimer(setTimeout(() => {
       setCopiedId(null);

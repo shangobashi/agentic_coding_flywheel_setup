@@ -182,7 +182,7 @@ function normalizeIP(raw: string): string {
   }
 
   // IPv6 (basic validation; exact canonicalization is unnecessary for rate limiting)
-  if (trimmed.includes(':') && /^[0-9a-fA-F:]+$/.test(trimmed) && trimmed.length <= 45) {
+  if (trimmed.includes(':') && /^[0-9a-fA-F:\.]+$/.test(trimmed) && trimmed.length <= 45) {
     return trimmed.toLowerCase();
   }
 

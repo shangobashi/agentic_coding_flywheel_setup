@@ -45,7 +45,6 @@ import { useACFSRef, useInstallMode, useSSHUsername, useVPSIP } from "@/lib/user
 import { safeGetItem, withCurrentSearch } from "@/lib/utils";
 
 const STATUS_CHECK_COMPLETION_KEY = "acfs-command-flywheel-doctor";
-const LAUNCH_ONBOARDING_HANDOFF = "status-check";
 const QUICK_CHECKS = [
   {
     command: "cc --version",
@@ -151,11 +150,7 @@ export default function StatusCheckPage() {
     markComplete();
     markStepComplete(12);
     setIsNavigating(true);
-    router.push(
-      withCurrentSearch(
-        `/wizard/launch-onboarding?handoff=${LAUNCH_ONBOARDING_HANDOFF}`
-      )
-    );
+    router.push(withCurrentSearch("/wizard/launch-onboarding"));
   }, [router, markComplete]);
 
   // Compute auth services once, not on every category iteration
