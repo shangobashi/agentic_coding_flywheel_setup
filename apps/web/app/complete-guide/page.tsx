@@ -111,11 +111,11 @@ function RepresentationLadder() {
   const handleReset = useCallback(() => setBugLevel(null), []);
 
   return (
-    <div ref={ref} className="my-8 rounded-2xl border border-white/[0.08] bg-[#0a0a0c] p-6 shadow-xl glass-subtle transition-all duration-300 hover:border-white/20">
+    <div ref={ref} className="my-8 rounded-2xl border border-white/[0.12] bg-slate-900/80 p-6 backdrop-blur-lg backdrop-saturate-[1.2] hover:border-white/20 transition-colors" style={{ boxShadow: "0 4px 24px -1px rgba(0,0,0,0.4), inset 0 1px 1px rgba(255,255,255,0.05)" }}>
       <div className="mb-4 flex items-center justify-between">
         <h4 className="text-sm font-semibold text-white/80">Interactive: Where You Catch the Bug Matters</h4>
         {bugLevel !== null && (
-          <button onClick={handleReset} className="rounded-md bg-slate-800 px-3 py-1 text-xs text-slate-400 hover:bg-slate-700 transition-colors">
+          <button onClick={handleReset} aria-label="Reset bug simulation" className="rounded-md bg-white/[0.06] border border-white/10 px-3 py-1.5 text-xs text-white/60 hover:text-white hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-400 transition-colors shadow-sm active:scale-95">
             Reset
           </button>
         )}
@@ -185,11 +185,12 @@ function RepresentationLadder() {
                 {bugLevel === null && (
                   <motion.button
                     onClick={() => handleBugClick(i)}
-                    className="shrink-0 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-[10px] font-semibold text-red-400 hover:bg-red-500/20 transition-colors whitespace-nowrap"
+                    aria-label={`Introduce bug in ${layer.label}`}
+                    className="shrink-0 rounded-lg border border-red-500/30 bg-red-500/10 min-h-[44px] min-w-[44px] px-3 py-2 text-xs font-semibold text-red-400 hover:bg-red-500/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400 transition-colors whitespace-nowrap"
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                   >
-                    <Bug className="inline h-3 w-3 mr-1" />Bug
+                    <Bug className="inline h-3.5 w-3.5 mr-1" />Bug
                   </motion.button>
                 )}
               </div>
@@ -281,9 +282,27 @@ function ConvergenceDetector() {
   }, []);
 
   return (
-    <div ref={ref} className="my-8 rounded-2xl border border-white/[0.08] bg-[#0a0a0c] p-6 shadow-xl glass-subtle transition-all duration-300 hover:border-white/20">
+    <div ref={ref} className="my-8 rounded-2xl border border-white/[0.12] bg-slate-900/80 p-6 backdrop-blur-lg backdrop-saturate-[1.2] hover:border-white/20 transition-colors" style={{ boxShadow: "0 4px 24px -1px rgba(0,0,0,0.4), inset 0 1px 1px rgba(255,255,255,0.05)" }}>
       <h4 className="mb-1 text-sm font-semibold text-white/80">Interactive: Convergence Detection Simulator</h4>
-      <p className="mb-6 text-xs text-white/50">Drag the sliders to model different polishing states</p>
+      <p className="mb-3 text-xs text-white/50">Drag the sliders or pick a preset to model different polishing states</p>
+
+      <div className="mb-5 flex flex-wrap gap-2">
+        <span className="text-[10px] text-white/30 self-center mr-1">Presets:</span>
+        {([
+          { label: "Early Draft", vals: [0.1, 0.1, 0.15] },
+          { label: "Mid-Polish", vals: [0.5, 0.45, 0.5] },
+          { label: "Nearly Ready", vals: [0.8, 0.75, 0.85] },
+          { label: "Ship It", vals: [0.95, 0.95, 0.98] },
+        ] as const).map((preset) => (
+          <button
+            key={preset.label}
+            onClick={() => setValues([...preset.vals])}
+            className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[10px] text-white/50 hover:bg-white/[0.06] hover:text-white/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-400 transition-colors"
+          >
+            {preset.label}
+          </button>
+        ))}
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
         {CONVERGENCE_SIGNALS.map((signal, idx) => (
@@ -304,11 +323,13 @@ function ConvergenceDetector() {
               step={0.01}
               value={values[idx]}
               onChange={(e) => updateSignal(idx, Number(e.target.value))}
-              className="w-full h-2 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white/50 [&::-webkit-slider-thumb]:cursor-pointer"
+              aria-label={signal.label}
+              aria-valuetext={`${(values[idx] * 100).toFixed(0)}%`}
+              className="w-full h-2 rounded-full appearance-none cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-400 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white/60 [&::-webkit-slider-thumb]:[background-color:var(--thumb-color)] [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white/60 [&::-moz-range-thumb]:[background-color:var(--thumb-color)]"
               style={{
                 background: `linear-gradient(to right, ${signal.color} ${values[idx] * 100}%, #1e293b ${values[idx] * 100}%)`,
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                ["--tw-slider-thumb-bg" as any]: signal.color,
+                ["--thumb-color" as any]: signal.color,
               }}
             />
             <div className="mt-1 text-right text-xs tabular-nums font-mono" style={{ color: signal.color }}>
@@ -357,23 +378,13 @@ function ConvergenceDetector() {
       </motion.div>
 
       {/* Phase bar */}
-      <div className="mt-6 flex h-2 rounded-full overflow-hidden bg-slate-800">
-        {PHASE_BANDS.map((band, i) => (
-          <div key={i} className="relative" style={{ width: `${band.width}%`, backgroundColor: `${band.color}30` }}>
-            {score >= band.threshold && score < band.threshold + band.span && (
-              <motion.div
-                className="absolute top-0 h-full rounded-full"
-                style={{ backgroundColor: band.color }}
-                initial={false}
-                animate={{ width: `${Math.min(100, ((score - band.threshold) / band.span) * 100)}%` }}
-                transition={{ type: "spring", stiffness: 200, damping: 25 }}
-              />
-            )}
-            {score >= band.threshold + band.span && (
-              <div className="absolute top-0 h-full w-full rounded-full" style={{ backgroundColor: band.color }} />
-            )}
-          </div>
-        ))}
+      <div className="mt-6 flex h-2 rounded-full overflow-hidden bg-white/5 border border-white/10">
+        <motion.div
+          className="h-full bg-gradient-to-r from-emerald-500 to-cyan-400"
+          initial={reducedMotion ? {} : { width: 0 }}
+          animate={{ width: `${score * 100}%` }}
+          transition={{ duration: 0.5 }}
+        />
       </div>
       <div className="mt-1 flex justify-between text-[9px] text-white/30 px-0.5">
         <span>0</span><span>0.30</span><span>0.55</span><span>0.75</span><span>1.00</span>
@@ -409,20 +420,26 @@ function CoordinationTrioViz() {
   const reducedMotion = prefersReducedMotion ?? false;
   const [hoveredTool, setHoveredTool] = useState<TrioToolId | null>(null);
   const [disabledTool, setDisabledTool] = useState<TrioToolId | null>(null);
+  const dismissTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const isFinePointer = useRef(false);
+
+  useEffect(() => {
+    isFinePointer.current = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+  }, []);
 
   const toolMap = new Map(TRIO_TOOLS.map(t => [t.id, t] as const));
 
   return (
-    <div ref={ref} className="my-8 rounded-2xl border border-white/[0.08] bg-[#0a0a0c] p-6 shadow-xl glass-subtle transition-all duration-300 hover:border-white/20">
+    <div ref={ref} className="my-8 rounded-2xl border border-white/[0.12] bg-slate-900/80 p-6 backdrop-blur-lg backdrop-saturate-[1.2] hover:border-white/20 transition-colors" style={{ boxShadow: "0 4px 24px -1px rgba(0,0,0,0.4), inset 0 1px 1px rgba(255,255,255,0.05)" }}>
       <div className="mb-1 flex items-center justify-between flex-wrap gap-2">
         <h4 className="text-sm font-semibold text-white/80">Interactive: The Coordination Trio</h4>
         {disabledTool && (
-          <button onClick={() => setDisabledTool(null)} className="rounded-md bg-slate-800 px-3 py-1 text-xs text-slate-400 hover:bg-slate-700 transition-colors">
+          <button onClick={() => setDisabledTool(null)} aria-label="Re-enable all tools" className="rounded-md bg-white/[0.06] border border-white/10 px-3 py-1.5 text-xs text-white/60 hover:text-white hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-400 transition-colors shadow-sm active:scale-95">
             Re-enable All
           </button>
         )}
       </div>
-      <p className="mb-4 text-xs text-white/50">Hover to explore connections. Click a tool to see what breaks without it.</p>
+      <p className="mb-4 text-xs text-white/50">Tap or hover to explore connections. Tap again (or click) to see what breaks without it.</p>
 
       <motion.svg
         viewBox="0 0 600 380"
@@ -486,13 +503,39 @@ function CoordinationTrioViz() {
           return (
             <motion.g
               key={tool.id}
-              onMouseEnter={() => !disabledTool && setHoveredTool(tool.id)}
-              onMouseLeave={() => setHoveredTool(null)}
-              onClick={() => setDisabledTool(disabledTool === tool.id ? null : tool.id)}
-              className="cursor-pointer"
+              tabIndex={0}
+              role="button"
+              aria-label={`${tool.label}${isDisabled ? " (disabled)" : ""}. ${tool.desc}`}
+              onMouseEnter={() => { if (isFinePointer.current && !disabledTool) setHoveredTool(tool.id); }}
+              onMouseLeave={() => { if (isFinePointer.current) setHoveredTool(null); }}
+              onTouchStart={(e) => {
+                if (isFinePointer.current) return;
+                e.stopPropagation();
+                clearTimeout(dismissTimer.current);
+                if (hoveredTool === tool.id) {
+                  setDisabledTool(disabledTool === tool.id ? null : tool.id);
+                  setHoveredTool(null);
+                } else {
+                  if (!disabledTool) setHoveredTool(tool.id);
+                  dismissTimer.current = setTimeout(() => setHoveredTool(null), 2000);
+                }
+              }}
+              onClick={() => {
+                if (!isFinePointer.current) return;
+                setDisabledTool(disabledTool === tool.id ? null : tool.id);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setDisabledTool(disabledTool === tool.id ? null : tool.id);
+                }
+              }}
+              className="cursor-pointer outline-none"
               animate={{ opacity: isDisabled ? 0.35 : isConnected ? 1 : 0.25 }}
               transition={{ duration: 0.2 }}
             >
+              {/* Enlarged invisible hit area for touch targets (48px radius) */}
+              <circle cx={tool.x} cy={tool.y} r={48} fill="transparent" />
               <motion.circle
                 cx={tool.x} cy={tool.y}
                 r={isHovered ? 40 : 36}

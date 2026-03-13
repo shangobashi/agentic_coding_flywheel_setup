@@ -466,6 +466,7 @@ run_cmd_bun_with_retry() {
 
         if [[ "$VERBOSE" == "true" ]]; then
             if [[ -n "${UPDATE_LOG_FILE:-}" ]]; then
+                # Separate commands in the log for readability.
                 {
                     echo ""
                     echo "----- COMMAND (attempt $attempt/$max_attempts): $cmd_display"
@@ -486,6 +487,7 @@ run_cmd_bun_with_retry() {
         fi
 
         if [[ $exit_code -eq 0 ]]; then
+            # Move cursor up and overwrite (only in non-verbose, non-quiet mode)
             if [[ "$QUIET" != "true" ]] && [[ "$VERBOSE" != "true" ]]; then
                 printf "\033[1A\033[2K  ${GREEN}[ok]${NC} %s\n" "$desc"
             elif [[ "$QUIET" != "true" ]]; then
@@ -749,11 +751,16 @@ update_require_security() {
 
     # Check for security.sh in expected locations
     local security_script=""
-    if [[ -f "$SCRIPT_DIR/security.sh" ]]; then
-        security_script="$SCRIPT_DIR/security.sh"
-    elif [[ -f "$HOME/.acfs/scripts/lib/security.sh" ]]; then
-        security_script="$HOME/.acfs/scripts/lib/security.sh"
-    fi
+    local candidate=""
+    for candidate in \
+        "${ACFS_BIN_DIR:-$HOME/.local/bin}/security.sh" \
+        "${ACFS_HOME:-$HOME/.acfs}/scripts/lib/security.sh" \
+        "${ACFS_REPO_ROOT:-}/scripts/security.sh"; do
+        if [[ -n "$candidate" ]] && [[ -f "$candidate" ]]; then
+            security_script="$candidate"
+            break
+        fi
+    done
 
     if [[ -z "$security_script" ]]; then
         echo "" >&2
@@ -765,8 +772,9 @@ update_require_security() {
         echo "  This is required for --stack updates." >&2
         echo "" >&2
         echo "  Checked locations:" >&2
-        echo "    - $SCRIPT_DIR/security.sh" >&2
-        echo "    - $HOME/.acfs/scripts/lib/security.sh" >&2
+        echo "    - ${ACFS_BIN_DIR:-$HOME/.local/bin}/security.sh" >&2
+        echo "    - ${ACFS_HOME:-$HOME/.acfs}/scripts/lib/security.sh" >&2
+        echo "    - ${ACFS_REPO_ROOT:-}/scripts/security.sh" >&2
         echo "" >&2
         echo "  This usually means:" >&2
         echo "    1. You have an older ACFS installation, OR" >&2
@@ -1988,7 +1996,7 @@ update_stack() {
                         log_item "fail" "MCP Agent Mail" "am CLI missing after install"
                         ((FAIL_COUNT += 1))
                     else
-                        db_url="sqlite+aiosqlite:///${storage_root}/storage.sqlite3"
+                        db_url="sqlite://${storage_root}/storage.sqlite3"
 
                         local -a service_env=("HOME=$HOME")
                         if [[ -d "$runtime_dir" ]]; then
@@ -2010,8 +2018,9 @@ WorkingDirectory=$storage_root
 Environment=RUST_LOG=info
 Environment=STORAGE_ROOT=$storage_root
 Environment=DATABASE_URL=$db_url
-Environment=HTTP_PATH=/mcp/
-ExecStart=$am_bin serve-http --host 127.0.0.1 --port 8765 --path /mcp --no-auth --no-tui
+Environment=HTTP_ALLOW_LOCALHOST_UNAUTHENTICATED=true
+ExecStartPre=$am_bin migrate
+ExecStart=$am_bin serve-http --host 127.0.0.1 --port 8765 --path /mcp/
 Restart=on-failure
 RestartSec=5
 
@@ -2076,8 +2085,14 @@ UNIT_EOF
                                         RUST_LOG=info \
                                         STORAGE_ROOT="$storage_root" \
                                         DATABASE_URL="$db_url" \
-                                        HTTP_PATH=/mcp/ \
-                                        "$am_bin" serve-http --host 127.0.0.1 --port 8765 --path /mcp --no-auth --no-tui \
+                                        HTTP_ALLOW_LOCALHOST_UNAUTHENTICATED=true \
+                                        "$am_bin" migrate >/dev/null 2>&1 || true
+                                    nohup env \
+                                        RUST_LOG=info \
+                                        STORAGE_ROOT="$storage_root" \
+                                        DATABASE_URL="$db_url" \
+                                        HTTP_ALLOW_LOCALHOST_UNAUTHENTICATED=true \
+                                        "$am_bin" serve-http --host 127.0.0.1 --port 8765 --path /mcp/ \
                                         >>"$fallback_log_file" 2>&1 < /dev/null &
                                     echo $! > "$fallback_pid_file"
                                 fi
@@ -2086,8 +2101,14 @@ UNIT_EOF
                                     RUST_LOG=info \
                                     STORAGE_ROOT="$storage_root" \
                                     DATABASE_URL="$db_url" \
-                                    HTTP_PATH=/mcp/ \
-                                    "$am_bin" serve-http --host 127.0.0.1 --port 8765 --path /mcp --no-auth --no-tui \
+                                    HTTP_ALLOW_LOCALHOST_UNAUTHENTICATED=true \
+                                    "$am_bin" migrate >/dev/null 2>&1 || true
+                                nohup env \
+                                    RUST_LOG=info \
+                                    STORAGE_ROOT="$storage_root" \
+                                    DATABASE_URL="$db_url" \
+                                    HTTP_ALLOW_LOCALHOST_UNAUTHENTICATED=true \
+                                    "$am_bin" serve-http --host 127.0.0.1 --port 8765 --path /mcp/ \
                                     >>"$fallback_log_file" 2>&1 < /dev/null &
                                 echo $! > "$fallback_pid_file"
                             fi
@@ -2271,7 +2292,7 @@ UNIT_EOF
 update_root_agents_md() {
     log_section "Root AGENTS.md"
 
-    if ! cmd_exists flywheel-update-agents-md; then
+    if ! cmd_exists flywheel_update_agents_md; then
         local generator=""
         local candidate=""
         for candidate in \
@@ -2295,7 +2316,7 @@ update_root_agents_md() {
         fi
     fi
 
-    run_cmd_sudo "Root AGENTS.md" flywheel-update-agents-md
+    run_cmd_sudo "Root AGENTS.md" flywheel_update_agents_md
 }
 
 # ============================================================

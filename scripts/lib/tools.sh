@@ -322,6 +322,11 @@ has_skipped_tools() {
 should_auto_skip_on_failure() {
     local tool="$1"
 
+    # In strict mode, we never auto-skip on failure, we abort.
+    if [[ "${ACFS_STRICT_MODE:-false}" == "true" ]]; then
+        return 1
+    fi
+
     # CRITICAL tools never auto-skip
     if is_critical_tool "$tool"; then
         return 1

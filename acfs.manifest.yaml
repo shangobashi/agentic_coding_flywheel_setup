@@ -1,8 +1,6 @@
 # ACFS Module Manifest
 # Single source of truth for all tools installed by the Agentic Coding Flywheel Setup
-# Version: 2.0.0 (Schema vNext)
-
-version: 2
+# Version: 2
 name: agentic_coding_flywheel_setup
 id: acfs
 
@@ -896,9 +894,9 @@ modules:
         tarball="supabase_linux_${arch}.tar.gz"
         checksums="supabase_${version}_checksums.txt"
 
-        tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/acfs-supabase.XXXXXX" 2>/dev/null)" || tmp_dir=""
-        tmp_tgz="$(mktemp "${TMPDIR:-/tmp}/acfs-supabase.tgz.XXXXXX" 2>/dev/null)" || tmp_tgz=""
-        tmp_checksums="$(mktemp "${TMPDIR:-/tmp}/acfs-supabase.sha.XXXXXX" 2>/dev/null)" || tmp_checksums=""
+        tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/acfs-supabase.XXXXXX")"
+        tmp_tgz="$(mktemp "${TMPDIR:-/tmp}/acfs-supabase.tgz.XXXXXX")"
+        tmp_checksums="$(mktemp "${TMPDIR:-/tmp}/acfs-supabase.sha.XXXXXX")"
 
         if [[ -z "$tmp_dir" ]] || [[ -z "$tmp_tgz" ]] || [[ -z "$tmp_checksums" ]]; then
           echo "Supabase CLI: failed to create temp files" >&2
@@ -1079,7 +1077,7 @@ modules:
           unit_dir="$HOME/.config/systemd/user"
           unit_file="$unit_dir/agent-mail.service"
           am_bin="$(command -v am)"
-          db_url="sqlite+aiosqlite:///${storage_root}/storage.sqlite3"
+          db_url="sqlite://${storage_root}/storage.sqlite3"
 
           mkdir -p "$storage_root" "$unit_dir"
           cat > "$unit_file" <<UNIT_EOF
@@ -1093,8 +1091,9 @@ modules:
           Environment=RUST_LOG=info
           Environment=STORAGE_ROOT=$storage_root
           Environment=DATABASE_URL=$db_url
-          Environment=HTTP_PATH=/mcp/
-          ExecStart=$am_bin serve-http --host 127.0.0.1 --port 8765 --path /mcp --no-auth --no-tui
+          Environment=HTTP_ALLOW_LOCALHOST_UNAUTHENTICATED=true
+          ExecStartPre=$am_bin migrate
+          ExecStart=$am_bin serve-http --host 127.0.0.1 --port 8765 --path /mcp/
           Restart=on-failure
           RestartSec=5
 
@@ -2280,43 +2279,7 @@ modules:
       runner: bash
       args: ["--yes"]
       url: "https://raw.githubusercontent.com/Dicklesworthstone/post_compact_reminder/main/install-post-compact-reminder.sh"
-    install:
-      - |
-        target_home="${TARGET_HOME:-$HOME}"
-        hook_script="$target_home/.local/bin/claude-post-compact-reminder"
-        settings="$target_home/.claude/settings.json"
-        alt_settings="$target_home/.config/claude/settings.json"
-        active_settings=""
-        backup_file=""
-
-        test -x "$hook_script" || {
-          echo "PCR hook script missing after install" >&2
-          exit 1
-        }
-
-        if [[ -f "$settings" ]]; then
-          active_settings="$settings"
-          backup_file="${settings}.bak"
-        elif [[ -f "$alt_settings" ]]; then
-          active_settings="$alt_settings"
-          backup_file="${alt_settings}.bak"
-        else
-          echo "PCR did not create a Claude settings.json file" >&2
-          exit 1
-        fi
-
-        if ! grep -q "compact" "$active_settings"; then
-          echo "PCR settings entry does not contain compact hook registration" >&2
-          exit 1
-        fi
-
-        if [[ -f "$backup_file" ]]; then
-          echo "PCR settings backup preserved at $backup_file" >&2
-        else
-          echo "PCR configured $active_settings without creating a .bak backup (likely a fresh settings file)" >&2
-        fi
-
-        echo "PCR installed - Claude will be reminded to re-read AGENTS.md after compaction" >&2
+    install: []
     verify:
       - |
         target_home="${TARGET_HOME:-$HOME}"
@@ -2403,6 +2366,7 @@ modules:
         - "Preserving code solutions from chat"
         - "Building a local knowledge base from AI interactions"
       language: "Rust"
+      stars: 156
       cli_name: "csctf"
     dependencies:
       - base.system   # csctf provides prebuilt binaries; installer handles deps
@@ -2483,6 +2447,7 @@ modules:
         - "Reducing API costs for large codebases"
         - "Preparing code for context-limited models"
       language: "Rust"
+      stars: 156
       cli_name: "tru"
     dependencies:
       - lang.rust
@@ -2523,6 +2488,7 @@ modules:
         - "Tracking API token consumption"
         - "Analyzing prompt efficiency"
       language: "Rust"
+      stars: 156
       cli_name: "rano"
     dependencies:
       - lang.rust
@@ -2563,6 +2529,7 @@ modules:
         - "Archiving web content locally"
         - "Building LLM-ready research corpora"
       language: "Rust"
+      stars: 156
       cli_name: "mdwb"
     dependencies:
       - lang.rust
@@ -2603,7 +2570,7 @@ modules:
         - "Creating reproducible prompt templates"
         - "Managing context window budget"
       language: "TypeScript"
-      stars: 78
+      stars: 156
       cli_name: "s2p"
     dependencies:
       - lang.rust
@@ -2614,6 +2581,7 @@ modules:
       tool: s2p
       runner: bash
       url: "https://raw.githubusercontent.com/Dicklesworthstone/source_to_prompt_tui/main/install.sh"
+      args: ["--", "--skip-cass"]
     install: []
     verify:
       - s2p --help || s2p --version
@@ -2644,6 +2612,7 @@ modules:
         - "Measuring request latency"
         - "Inspecting headers and payloads"
       language: "Rust"
+      stars: 156
       cli_name: "rust_proxy"
     dependencies:
       - lang.rust
@@ -2688,6 +2657,7 @@ modules:
         - "Cleaning up ASCII flowcharts"
         - "Producing clean documentation"
       language: "Rust"
+      stars: 156
       cli_name: "aadc"
     dependencies:
       - lang.rust
@@ -2732,6 +2702,7 @@ modules:
         - "Comparing provider costs"
         - "Optimizing agent token usage"
       language: "Rust"
+      stars: 156
       cli_name: "caut"
     dependencies:
       - lang.rust
@@ -2885,19 +2856,19 @@ modules:
       - mkdir -p ~/.local/bin
       - |
         # Install acfs-update wrapper
-        if [[ -n "${ACFS_BOOTSTRAP_DIR:-}" ]] && [[ -f "${ACFS_BOOTSTRAP_DIR}/scripts/acfs-update" ]]; then
-          cp "${ACFS_BOOTSTRAP_DIR}/scripts/acfs-update" ~/.local/bin/acfs-update
-        elif [[ -f "scripts/acfs-update" ]]; then
-          cp "scripts/acfs-update" ~/.local/bin/acfs-update
+        if [[ -n "${ACFS_BOOTSTRAP_DIR:-}" ]] && [[ -f "${ACFS_BOOTSTRAP_DIR}/scripts/lib/nightly_update.sh" ]]; then
+          cp "${ACFS_BOOTSTRAP_DIR}/scripts/lib/nightly_update.sh" ~/.acfs/scripts/nightly-update.sh
+        elif [[ -f "scripts/lib/nightly_update.sh" ]]; then
+          cp "scripts/lib/nightly_update.sh" ~/.acfs/scripts/nightly-update.sh
         else
           ACFS_RAW="${ACFS_RAW:-https://raw.githubusercontent.com/Dicklesworthstone/agentic_coding_flywheel_setup/${ACFS_REF:-main}}"
           CURL_ARGS=(-fsSL)
           if curl --help all 2>/dev/null | grep -q -- '--proto'; then
             CURL_ARGS=(--proto '=https' --proto-redir '=https' -fsSL)
           fi
-          curl "${CURL_ARGS[@]}" "${ACFS_RAW}/scripts/acfs-update" -o ~/.local/bin/acfs-update
+          curl "${CURL_ARGS[@]}" "${ACFS_RAW}/scripts/lib/nightly_update.sh" -o ~/.acfs/scripts/nightly-update.sh
         fi
-        chmod +x ~/.local/bin/acfs-update
+        chmod +x ~/.acfs/scripts/nightly-update.sh
     verify:
       - command -v acfs-update
 
