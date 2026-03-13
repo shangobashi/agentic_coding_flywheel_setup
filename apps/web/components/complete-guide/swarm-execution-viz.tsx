@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { motion, useInView, useReducedMotion, AnimatePresence } from "framer-motion";
-import { CheckCircle2, AlertTriangle, Users, Play, RotateCcw } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { CheckCircle2, AlertTriangle, Play, RotateCcw, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const AGENT_COUNT = 4;

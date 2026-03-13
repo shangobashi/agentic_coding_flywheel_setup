@@ -13,7 +13,6 @@ const LADDER_LAYERS = [
     id: "plan",
     label: "Plan Space",
     color: "#FFFFFF",
-    width: 95,
     cost: "1x",
     desc: "Fix the prose, rethink the architecture, and keep the blast radius confined to reasoning.",
   },
@@ -21,7 +20,6 @@ const LADDER_LAYERS = [
     id: "bead",
     label: "Bead Space",
     color: "#FFBD2E",
-    width: 70,
     cost: "5x",
     desc: "Revise boundaries, dependencies, and acceptance criteria across executable work packets.",
   },
@@ -29,7 +27,6 @@ const LADDER_LAYERS = [
     id: "code",
     label: "Code Space",
     color: "#FF5500",
-    width: 45,
     cost: "25x",
     desc: "Rewrite implementation, fix tests, debug regressions, and pay the price of already-made commitments.",
   },
@@ -95,14 +92,12 @@ export function RepresentationLadder() {
                   damping: 25,
                   delay: reducedMotion ? 0 : index * 0.15,
                 }}
-                className="group/layer flex items-center gap-6"
+                className="group/layer flex flex-col sm:flex-row gap-4 sm:gap-6 items-stretch sm:items-center"
               >
-                <div className="flex-1">
+                <div className="flex-1 w-full">
                   <div
-                    className="relative rounded-3xl border transition-all duration-700 overflow-hidden"
+                    className="relative rounded-3xl border transition-all duration-700 overflow-hidden h-full min-h-[90px]"
                     style={{
-                      width: `${layer.width}%`,
-                      height: '90px',
                       borderColor: isBugSource
                         ? '#FF5500'
                         : isCascade
@@ -117,7 +112,7 @@ export function RepresentationLadder() {
                   >
                     <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.02] mix-blend-overlay pointer-events-none" />
                     
-                    <div className="absolute inset-0 flex items-center justify-between px-8">
+                    <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between p-6 gap-4 h-full">
                       <div>
                         <div className="flex items-center gap-3 mb-1">
                           <span className={`text-[0.6rem] font-black uppercase tracking-[0.2em] transition-colors ${isBugSource ? 'text-[#FF5500]' : isCascade ? 'text-[#FFBD2E]' : 'text-white/30'}`}>
@@ -129,8 +124,8 @@ export function RepresentationLadder() {
                           {layer.label}
                         </span>
                       </div>
-                      <div className="text-right">
-                        <span className="text-[0.6rem] font-black uppercase tracking-[0.3em] text-white/20">Price</span>
+                      <div className="text-left sm:text-right shrink-0">
+                        <span className="text-[0.6rem] font-black uppercase tracking-[0.3em] text-white/20 block mb-1">Price</span>
                         <div className={`text-3xl font-black tracking-tighter transition-colors ${isBugSource ? 'text-[#FF5500]' : isCascade ? 'text-[#FFBD2E]' : 'text-white/40'}`}>
                           {layer.cost}
                         </div>
@@ -139,7 +134,7 @@ export function RepresentationLadder() {
                   </div>
                 </div>
 
-                <div className="w-48 shrink-0">
+                <div className="w-full sm:w-48 shrink-0 flex items-center justify-center">
                   <AnimatePresence mode="wait">
                     {bugLevel === null ? (
                       <motion.button
