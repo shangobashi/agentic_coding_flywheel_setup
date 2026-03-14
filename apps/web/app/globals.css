@@ -528,6 +528,11 @@
   ) 1;
 }
 
+/* Safe area padding for mobile bottom bars */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 /* Staggered animation delays */
 .stagger-1 { animation-delay: 0.1s; }
 .stagger-2 { animation-delay: 0.2s; }

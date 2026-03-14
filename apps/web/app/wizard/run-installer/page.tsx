@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Sparkles,
@@ -19,7 +19,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { CommandCard } from "@/components/command-card";
 import { AlertCard, OutputPreview, DetailsSection } from "@/components/alert-card";
 import { TrackedLink } from "@/components/tracked-link";
-import { markStepComplete } from "@/lib/wizardSteps";
+import {
+  canAccessWizardStep,
+  getCompletedSteps,
+  getNextReachableWizardStep,
+  markStepComplete,
+} from "@/lib/wizardSteps";
 import { useWizardAnalytics } from "@/lib/hooks/useWizardAnalytics";
 import { withCurrentSearch } from "@/lib/utils";
 import { buildInstallCommand, formatSshTarget } from "@/lib/commandBuilder";
@@ -57,7 +62,7 @@ const WHAT_IT_INSTALLS = [
   },
   {
     category: "Dicklesworthstone Stack",
-    items: ["ntm", "mcp_agent_mail", "beads_viewer", "and 5 more tools"],
+    items: ["ntm", "mcp_agent_mail", "beads_viewer", "and 15+ more tools"],
   },
 ];
 
@@ -65,17 +70,19 @@ export default function RunInstallerPage() {
   const router = useRouter();
   const [isNavigating, setIsNavigating] = useState(false);
   const [installMode, , installModeLoaded] = useInstallMode();
-  const [pinnedRef, setPinnedRef] = useACFSRef();
+  const [pinnedRef, setPinnedRef, acfsRefLoaded] = useACFSRef();
   const [vpsIP, , vpsIPLoaded] = useVPSIP();
   const [sshUsername, , sshUsernameLoaded] = useSSHUsername();
   const [pinEditorOpen, setPinEditorOpen] = useState(false);
   const usePinnedRef = pinEditorOpen || pinnedRef !== null;
   const refInput = pinnedRef ?? "main";
   const safePinnedRef = useMemo(() => normalizeGitRef(refInput), [refInput]);
-  const effectiveInstallMode = installModeLoaded ? installMode : "vibe";
+  const ready =
+    installModeLoaded && acfsRefLoaded && vpsIPLoaded && sshUsernameLoaded;
+  const effectiveInstallMode = installMode;
   const effectiveRef = usePinnedRef ? refInput : null;
-  const effectiveVpsIP = vpsIPLoaded && vpsIP ? vpsIP : "YOUR_IP";
-  const effectiveSSHUsername = sshUsernameLoaded ? sshUsername : "ubuntu";
+  const effectiveVpsIP = vpsIP ?? "";
+  const effectiveSSHUsername = sshUsername.trim() || "ubuntu";
   const reconnectCommand = useMemo(
     () => `ssh -i ~/.ssh/acfs_ed25519 ${formatSshTarget(effectiveSSHUsername, effectiveVpsIP)}`,
     [effectiveSSHUsername, effectiveVpsIP],
@@ -115,12 +122,35 @@ export default function RunInstallerPage() {
     stepTitle: "Run Installer",
   });
 
+  useEffect(() => {
+    if (!ready) return;
+
+    const completedSteps = getCompletedSteps();
+    if (!canAccessWizardStep(completedSteps, 9)) {
+      const redirectStep = getNextReachableWizardStep(completedSteps);
+      router.replace(withCurrentSearch(`/wizard/${redirectStep.slug}`));
+      return;
+    }
+
+    if (vpsIP === null) {
+      router.replace(withCurrentSearch("/wizard/create-vps"));
+    }
+  }, [ready, router, vpsIP]);
+
   const handleContinue = useCallback(() => {
     markComplete();
     markStepComplete(9);
     setIsNavigating(true);
     router.push(withCurrentSearch("/wizard/reconnect-ubuntu"));
   }, [router, markComplete]);
+
+  if (!ready || vpsIP === null) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Rocket className="h-8 w-8 animate-pulse text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import {
@@ -23,7 +23,13 @@ import {
 } from "@/components/command-card";
 import { AlertCard, OutputPreview } from "@/components/alert-card";
 import { WhereAmICheck } from "@/components/connection-check";
-import { markStepComplete, validateStep } from "@/lib/wizardSteps";
+import {
+  canAccessWizardStep,
+  getCompletedSteps,
+  getNextReachableWizardStep,
+  markStepComplete,
+  validateStep,
+} from "@/lib/wizardSteps";
 import {
   SERVICES,
   CATEGORY_NAMES,
@@ -114,14 +120,16 @@ export default function StatusCheckPage() {
   const [sshUsername, , sshUsernameLoaded] = useSSHUsername();
   const [installMode, , installModeLoaded] = useInstallMode();
   const [acfsRef, , acfsRefLoaded] = useACFSRef();
+  const ready =
+    vpsIPLoaded && sshUsernameLoaded && installModeLoaded && acfsRefLoaded;
   const { data: doctorConfirmed = false } = useQuery({
     queryKey: commandCompletionKeys.completion(STATUS_CHECK_COMPLETION_KEY),
     queryFn: () => safeGetItem(STATUS_CHECK_COMPLETION_KEY) === "true",
     staleTime: Infinity,
     gcTime: Infinity,
   });
-  const effectiveVpsIP = vpsIPLoaded && vpsIP ? vpsIP : "YOUR_VPS_IP";
-  const effectiveSSHUsername = sshUsernameLoaded ? sshUsername : "ubuntu";
+  const effectiveVpsIP = vpsIP ?? "";
+  const effectiveSSHUsername = sshUsername.trim() || "ubuntu";
   const reconnectTarget = formatSshTarget(effectiveSSHUsername, effectiveVpsIP);
   const reconnectCommand = `ssh -i ~/.ssh/acfs_ed25519 ${reconnectTarget}`;
   const reconnectWindowsCommand = `ssh -i $HOME\\.ssh\\acfs_ed25519 ${reconnectTarget}`;
@@ -141,6 +149,21 @@ export default function StatusCheckPage() {
     stepTitle: "Status Check",
   });
 
+  useEffect(() => {
+    if (!ready) return;
+
+    const completedSteps = getCompletedSteps();
+    if (!canAccessWizardStep(completedSteps, 12)) {
+      const redirectStep = getNextReachableWizardStep(completedSteps);
+      router.replace(withCurrentSearch(`/wizard/${redirectStep.slug}`));
+      return;
+    }
+
+    if (vpsIP === null) {
+      router.replace(withCurrentSearch("/wizard/create-vps"));
+    }
+  }, [ready, router, vpsIP]);
+
   const handleContinue = useCallback(() => {
     const result = validateStep(12);
     if (!result.valid) {
@@ -155,6 +178,14 @@ export default function StatusCheckPage() {
 
   // Compute auth services once, not on every category iteration
   const authServices = getAuthServices();
+
+  if (!ready || vpsIP === null) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Stethoscope className="h-8 w-8 animate-pulse text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">

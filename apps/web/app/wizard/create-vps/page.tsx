@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useForm } from "@tanstack/react-form";
@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { markStepComplete } from "@/lib/wizardSteps";
 import { useWizardAnalytics } from "@/lib/hooks/useWizardAnalytics";
-import { useVPSIP, isValidIP } from "@/lib/userPreferences";
+import { useCreateVPSChecklist, useVPSIP, isValidIP } from "@/lib/userPreferences";
 import { withCurrentSearch } from "@/lib/utils";
 import {
   SimplerGuide,
@@ -70,6 +70,7 @@ const CHECKLIST_ITEMS = [
 ] as const;
 
 type ChecklistItemId = typeof CHECKLIST_ITEMS[number]["id"];
+const CHECKLIST_ITEM_IDS = new Set<ChecklistItemId>(CHECKLIST_ITEMS.map((item) => item.id));
 
 interface ProviderGuideProps {
   name: string;
@@ -175,11 +176,18 @@ const PROVIDER_GUIDES = [
 export default function CreateVPSPage() {
   const router = useRouter();
   const [storedIP, setStoredIP] = useVPSIP();
+  const [storedChecklist, setStoredChecklist] = useCreateVPSChecklist();
   const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
-
-  // Track checklist state locally for simpler form handling
-  const [checkedItems, setCheckedItems] = useState<Set<ChecklistItemId>>(new Set());
+  const checkedItems = useMemo(() => {
+    const next = new Set<ChecklistItemId>();
+    for (const item of storedChecklist) {
+      if (CHECKLIST_ITEM_IDS.has(item as ChecklistItemId)) {
+        next.add(item as ChecklistItemId);
+      }
+    }
+    return next;
+  }, [storedChecklist]);
 
   // Analytics tracking for this wizard step
   const { markComplete } = useWizardAnalytics({
@@ -219,15 +227,15 @@ export default function CreateVPSPage() {
   }, [storedIP, form]);
 
   const handleCheckItem = (itemId: ChecklistItemId, checked: boolean) => {
-    setCheckedItems((prev) => {
-      const next = new Set(prev);
-      if (checked) {
-        next.add(itemId);
-      } else {
-        next.delete(itemId);
-      }
-      return next;
-    });
+    const next = new Set(checkedItems);
+    if (checked) {
+      next.add(itemId);
+    } else {
+      next.delete(itemId);
+    }
+    setStoredChecklist(
+      CHECKLIST_ITEMS.filter((item) => next.has(item.id)).map((item) => item.id)
+    );
   };
 
   const allChecked = CHECKLIST_ITEMS.every((item) => checkedItems.has(item.id));

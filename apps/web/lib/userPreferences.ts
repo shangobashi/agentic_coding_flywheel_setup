@@ -7,7 +7,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
-import { safeGetItem, safeSetItem } from "./utils";
+import { safeGetItem, safeGetJSON, safeSetItem, safeSetJSON } from "./utils";
 
 export type OperatingSystem = "mac" | "windows" | "linux";
 export type InstallMode = "vibe" | "safe";
@@ -17,6 +17,7 @@ const VPS_IP_KEY = "agent-flywheel-vps-ip";
 const INSTALL_MODE_KEY = "agent-flywheel-install-mode";
 const SSH_USERNAME_KEY = "agent-flywheel-ssh-username";
 const ACFS_REF_KEY = "agent-flywheel-acfs-ref";
+export const CREATE_VPS_CHECKLIST_KEY = "agent-flywheel-create-vps-checklist";
 
 const OS_QUERY_KEY = "os";
 const VPS_IP_QUERY_KEY = "ip";
@@ -26,6 +27,15 @@ const ACFS_REF_QUERY_KEY = "ref";
 const MAX_GIT_REF_LENGTH = 120;
 const GIT_REF_SAFE_PATTERN = /^[A-Za-z0-9._/-]+$/;
 const USER_PREFERENCES_EVENT = "acfs:user-preferences-updated";
+
+function normalizeStringList(values: unknown): string[] {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  const validValues = values.filter((value): value is string => typeof value === "string");
+  return Array.from(new Set(validValues));
+}
 
 function getQueryParam(key: string): string | null {
   if (typeof window === "undefined") return null;
@@ -284,6 +294,42 @@ export function useVPSIP(): [string | null, (ip: string) => void, boolean] {
   }, []);
 
   return [vpsIPState.ip, setIP, vpsIPState.loaded];
+}
+
+export function getCreateVPSChecklist(): string[] {
+  return normalizeStringList(safeGetJSON<unknown[]>(CREATE_VPS_CHECKLIST_KEY));
+}
+
+export function setCreateVPSChecklist(items: string[]): boolean {
+  const didPersist = safeSetJSON(CREATE_VPS_CHECKLIST_KEY, normalizeStringList(items));
+  if (didPersist) {
+    emitUserPreferencesUpdate();
+  }
+  return didPersist;
+}
+
+export function useCreateVPSChecklist(): [string[], (items: string[]) => void, boolean] {
+  const [state, setState] = useState<{ items: string[]; loaded: boolean }>({
+    items: [],
+    loaded: false,
+  });
+
+  useEffect(() => {
+    const syncState = () => {
+      setState({ items: getCreateVPSChecklist(), loaded: true });
+    };
+
+    syncState();
+    return subscribeToUserPreferencesUpdates(syncState);
+  }, []);
+
+  const setChecklist = useCallback((items: string[]) => {
+    if (setCreateVPSChecklist(items)) {
+      setState({ items: getCreateVPSChecklist(), loaded: true });
+    }
+  }, []);
+
+  return [state.items, setChecklist, state.loaded];
 }
 
 /**

@@ -447,6 +447,21 @@ Also, make sure that as part of these beads, we include comprehensive unit tests
                 <><strong>Semi-persistent identity.</strong> Agent Mail generates whimsical names like &quot;ScarletCave&quot; and &quot;CoralBadger&quot; — meaningful enough for coordination, disposable enough that losing one doesn&apos;t corrupt the system. No agent&apos;s identity is load-bearing.</>,
               ]} />
 
+              <P>Before editing files, agents reserve them via Agent Mail:</P>
+
+              <CodeBlock language="text" code={`file_reservation_paths(
+    project_key="/data/projects/my-repo",
+    agent_name="BlueLake",
+    paths=["src/auth/*.rs"],
+    ttl_seconds=3600,
+    exclusive=true,
+    reason="br-42: refactor auth"
+)`} />
+
+              <P>Other agents see the reservation and work on different files. A rigid locking system would deadlock when an agent crashes while holding a lock. Advisory reservations with expiry degrade gracefully. The worst case is a brief window where two agents touch the same file, which the pre-commit guard catches anyway.</P>
+
+              <P>Agent Mail provides four high-level macros that wrap common multi-step patterns: <code>macro_start_session</code> (bootstrap: ensure project, register agent, fetch inbox), <code>macro_prepare_thread</code> (join existing thread with summary), <code>macro_file_reservation_cycle</code> (reserve, work, auto-release), and <code>macro_contact_handshake</code> (cross-agent contact setup).</P>
+
               <AgentMailViz />
             </SubSection>
 
@@ -465,7 +480,31 @@ Also, make sure that as part of these beads, we include comprehensive unit tests
                 ]}
               />
 
-              <P>PageRank finds what everything depends on. Betweenness finds bottlenecks. The math knows your priorities better than gut intuition. Agents just run <code>bv --robot-triage</code> — the mega-command — and get a massive wealth of insights into what to work on next.</P>
+              <P>PageRank finds what everything depends on. Betweenness finds bottlenecks. The math knows your priorities better than gut intuition.</P>
+
+              <CodeBlock language="bash" code={`bv --robot-triage        # THE MEGA-COMMAND: full recommendations with scores
+bv --robot-next          # Minimal: just the single top pick + claim command
+bv --robot-plan          # Parallel execution tracks with unblocks lists
+bv --robot-insights      # Full graph metrics: PageRank, betweenness, HITS
+bv --robot-priority      # Priority recommendations with reasoning and confidence
+bv --robot-diff --diff-since <ref>  # Changes since last check`} />
+
+              <TipBox variant="warning">
+                <strong>Use ONLY <code>--robot-*</code> flags.</strong> Bare <code>bv</code> launches an interactive TUI that blocks your session.
+              </TipBox>
+
+              <P>bv was made in a single day and was just under 7k lines of Go. It was later rewritten to 80k lines with advanced features. This shows that effort does not correspond to impact. The tool started for humans but pivoted to being primarily for agents:</P>
+
+              <BlockQuote>But the biggest improvement in terms of actual usefulness isn&apos;t for you humans at all! It&apos;s for your coding agents. They just need to run one simple command, bv --robot-triage, and they instantly get a massive wealth of insights into what to work on next.</BlockQuote>
+
+              <P>Advanced filtering lets you scope analysis to labels, historical point-in-time views, pre-filtered recipes, or grouped output:</P>
+
+              <CodeBlock language="bash" code={`bv --robot-plan --label backend              # Scope to label's subgraph
+bv --robot-insights --as-of HEAD~30          # Historical point-in-time
+bv --recipe actionable --robot-plan          # Only unblocked items
+bv --recipe high-impact --robot-triage       # Top PageRank scores
+bv --robot-triage --robot-triage-by-track    # Group by parallel streams
+bv --robot-triage --robot-triage-by-label    # Group by domain`} />
             </SubSection>
 
             <SubSection title="Bead IDs as Threading Anchors">
@@ -570,7 +609,9 @@ ntm send myproject --cc "Focus on the API layer"
 # Open the command palette (battle-tested prompts)
 ntm palette`} />
 
-            <P>NTM is useful but not mandatory. WezTerm with one agent per tab is another good setup — trigger common prompts from a Stream Deck, keep a prompt file open in your editor for rarer ones, and use Claude Code&apos;s Ctrl-r prompt history. The method cares that you can launch agents, get prompts into them quickly, and keep the coordination layer intact.</P>
+            <P>NTM is useful but not mandatory. A <strong>mux</strong> is a terminal multiplexer: a layer that lets you manage multiple shell sessions inside one higher-level session manager. tmux is the classic Unix terminal multiplexer. NTM is built on top of tmux. But tmux is only one mux. WezTerm has its own built-in mux. Zellij is another. The method cares that you have a workable orchestration layer, not that you picked one specific multiplexer.</P>
+
+            <P>One common alternative is WezTerm because native scrollback and text selection are more convenient than in tmux. A workable setup: run agents in separate tabs using WezTerm mux (often across remote machines), trigger common prompts from a Stream Deck, keep a prompt file open in Zed for rarer ones, and use Claude Code&apos;s <code>Ctrl-r</code> prompt history search for recently used prompts.</P>
 
             <P>Give each agent these marching orders:</P>
 
@@ -630,6 +671,32 @@ When you're not sure what to do next, use the bv tool mentioned in AGENTS.md to 
               <TipBox variant="warning">
                 <strong>Watch for strategic drift.</strong> A swarm can look productive while heading in the wrong direction — agents generating lots of code and commits while the real goal still feels far away. If that happens, stop and ask: &quot;Where are we on this project? Do we actually have the thing we are trying to build? If we intelligently implement all open beads, would we close that gap completely?&quot; If the answer is no, add or revise beads, re-polish them, and resume with a corrected frontier. Busy agents are not the goal; a bead graph that actually converges on the project goal is the goal.
               </TipBox>
+            </SubSection>
+
+            <SubSection title="Diagnosing a Stuck Swarm">
+              <P>When a swarm goes bad, the failure is usually one of two things: a <strong>local coordination jam</strong> (agents stepping on each other or losing operational context) or a <strong>strategic drift problem</strong> (the swarm is busy but no longer closing the real gap to the goal).</P>
+
+              <DataTable
+                headers={["Symptom", "Likely Cause", "What to Do"]}
+                rows={[
+                  ["Multiple agents keep picking the same bead", "Starts were not staggered; agents are not marking in_progress", "Stagger starts, force explicit Agent Mail claim messages, check reservations"],
+                  ["Agent goes in circles after compaction", "It forgot the operating contract in AGENTS.md", "Force Reread AGENTS.md; kill/restart the session if still erratic"],
+                  ["A bead sits in_progress for too long", "Agent crashed, silently blocked, or lost the plot", "Check Agent Mail, reclaim the bead, split out the blocker into a clearer bead"],
+                  ["Agents produce contradictory implementations", "Not coordinating through Agent Mail and reservations", "Audit reservation use, revise bead boundaries if overlapping"],
+                  ["Lots of code and commits, but goal still feels far", "Strategic drift; current beads do not close the remaining gap", "Stop, run the reality check prompt, revise bead graph"],
+                ]}
+              />
+            </SubSection>
+
+            <SubSection title="Atlas Notes as a Live Swarm">
+              <P>For a small project like Atlas Notes, a first swarm might look like this: <strong>Claude agent A</strong> claims br-101 and implements upload + parse handling. <strong>Codex agent B</strong> claims br-102 and works on the search path plus tests. <strong>Claude agent C</strong> claims br-103 and builds the admin failure dashboard. <strong>Gemini agent D</strong> stays flexible: reviews recent work, checks docs, and fills in test or UX gaps where needed. All four share the same codebase, read the same AGENTS.md, coordinate via Agent Mail, and use bv whenever they are uncertain about what unlocks the most progress next. That is what makes the swarm feel like one system rather than four unrelated terminals.</P>
+            </SubSection>
+
+            <SubSection title="Account Switching">
+              <P>When you hit rate limits, use CAAM (Coding Agent Account Manager) for sub-100ms account switching:</P>
+
+              <CodeBlock language="bash" code={`caam status                     # See current accounts and usage
+caam activate claude backup-2   # Switch instantly`} />
             </SubSection>
           </GuideSection>
 
@@ -1105,6 +1172,16 @@ Then rewrite the skill to fix every issue you found. Make the happy path obvious
               <P>CASS itself (a complex Rust program used by thousands of people) was made in around a week, but the human personally only spent a few hours on it. The rest of the time was spent by a swarm of agents implementing and polishing it and writing tests.</P>
             </SubSection>
 
+            <SubSection title="The Project Is a Foregone Conclusion">
+              <BlockQuote>Once you have the beads in good shape based on a great markdown plan, I almost view the project as a foregone conclusion at that point. The rest is basically mindless &quot;machine tending&quot; of your swarm of 5-15 agents.</BlockQuote>
+
+              <P>This claim sounds bold, but it follows logically from everything above. If the plan is thorough, the beads faithfully encode it with full context and correct dependencies, and the agents have a clear AGENTS.md, then implementation becomes a mechanical process of agents picking up beads, implementing them, reviewing, and moving on.</P>
+
+              <P><strong>This is true when:</strong> the plan has genuinely converged (not merely become long), the beads are self-contained enough that fresh agents can execute them without guessing, the swarm has working coordination/review/testing loops, and the human is still tending when flow jams or reality diverges from the plan.</P>
+
+              <P><strong>It stops being true when:</strong> architecture is still being invented during implementation, the bead graph is thin or missing dependencies, or the swarm cannot coordinate because AGENTS.md, Agent Mail, or bv usage is weak. If you find yourself doing heavy cognitive work during implementation, that is a signal that planning or bead polishing was insufficient. The remedy is to pause, go back to bead space, and add the missing detail.</P>
+            </SubSection>
+
             <SubSection title="V1 Is Not Everything">
               <P>A common misconception is that you have to do everything in one shot. In this approach, that&apos;s true only for version 1. Once you have a functioning v1, adding new features follows the same process: create a super detailed markdown plan for the new feature, turn it into beads, and implement. The same process that creates the initial version also handles all subsequent iterations.</P>
             </SubSection>
@@ -1123,6 +1200,21 @@ Then rewrite the skill to fix every issue you found. Make the happy path obvious
               <P>Every tool in the stack was built using the same methodology it now supports. When you improve the extreme-optimization skill, every future optimization pass across every tool benefits. When you improve the idea-wizard skill, every future brainstorming session across every project benefits. The improvements multiply rather than add. That is the flywheel effect in its purest form.</P>
             </SubSection>
 
+            <SubSection title="The Four Layers of Recursive Improvement">
+              <P>The recursive pattern operates at increasing levels of ambition. The mistake is trying to build all four layers at once. Start simple and let the need for the next layer emerge naturally.</P>
+
+              <NumberedList items={[
+                <><strong>Layer 1: Feedback forms after tool use (start here, no infrastructure needed).</strong> After an agent finishes using a tool, ask it to fill out a structured feedback survey. Feed that to another agent working on the tool itself. This requires nothing beyond two agent sessions and produces immediate improvements.</>,
+                <><strong>Layer 2: CASS-powered skill refinement (requires session logging).</strong> Instead of relying on one agent&apos;s opinion, mine session logs to find systematic patterns across many agents. An agent using a tool for the first time might blame itself for a confusing flag; when you see 15 agents all struggling with the same flag, you know the flag is the problem.</>,
+                <><strong>Layer 3: Skills that generate work (the system proposes its own improvements).</strong> The idea-wizard skill examines a project and generates improvement ideas. The optimization skill finds performance bottlenecks. These skills create new beads, which agents implement, which improve the tools, which make the skills more effective. The human&apos;s role shifts from directing specific work to curating which generated ideas are worth pursuing.</>,
+                <><strong>Layer 4: Skills bundled with tool installers (the skill improves before the user ever sees it).</strong> Every tool you ship includes a pre-optimized Claude Code skill baked into its installer. The skill was refined through multiple CASS cycles before shipping. When a new user installs the tool, their agents immediately benefit from all the refinement work done across every previous user&apos;s sessions.</>,
+              ]} />
+
+              <BlockQuote>I&apos;m going to start having my tool installers always add a highly optimized skill. It makes a massive difference.</BlockQuote>
+
+              <P>Most productivity techniques produce linear improvements: 10% better each cycle, and those gains do not stack. The recursive skill pattern compounds because each cycle improves the tools that perform the next cycle. When you improve the extreme-optimization skill, every future optimization pass across every tool benefits. The improvements multiply rather than add.</P>
+            </SubSection>
+
             <SubSection title="The Hidden Knowledge Extraction">
               <P>Models have internalized vast amounts of academic CS literature: obscure algorithmic techniques, mathematical proofs, design patterns from papers that only a handful of people ever read. Most of this knowledge never surfaces because nobody asks for it with enough precision. Skills are the mechanism for asking the right questions.</P>
 
@@ -1131,6 +1223,33 @@ Then rewrite the skill to fix every issue you found. Make the happy path obvious
               <BlockQuote>The knowledge is just sitting there and the models have it. But you need to know how to coax it out of them.</BlockQuote>
 
               <P>Stack enough cycles and the result is code that looks like it was written by someone who read every obscure CS paper ever published. In a functional sense, it was. The agent served as a lens focusing decades of dispersed academic knowledge onto a single practical target. The skill was the lens prescription.</P>
+            </SubSection>
+
+            <SubSection title="The Operator Library">
+              <P>These recurring cognitive moves show up throughout real Flywheel sessions. They matter more than any single prompt because they say <em>when</em> to apply a move, what failure looks like, and what output is expected.</P>
+
+              <DataTable
+                headers={["Operator", "Definition", "When to Use", "Failure Mode If Skipped"]}
+                rows={[
+                  ["Plan-First Expansion", "Move scope and workflow reasoning upward into markdown before code exists", "The project still fits in a plan but would explode in size once implemented", "Skeleton-first coding that locks in bad boundaries"],
+                  ["Competing-Plan Triangulation", "Generate multiple independent plan candidates and synthesize the strongest consensus", "The project is important enough that one model's biases are dangerous", "Picking the first decent plan and calling it done"],
+                  ["Overshoot Mismatch Hunt", "Force the model to keep searching by giving a deliberately high miss count target", "Review output looks too short or self-satisfied", "Accepting a review that found only the most obvious issues"],
+                  ["Plan-to-Beads Transfer Audit", "Treat conversion as a coverage-preserving translation problem with its own QA loop", "A large plan is about to be turned into execution tasks", "Assuming a beautiful plan automatically implies good beads"],
+                  ["Convergence Polish Loop", "Re-run refinement until changes slow down and become mostly local corrections", "The first polishing pass found real issues", "Treating the first decent revision as final"],
+                  ["Fresh-Eyes Reset", "Start a fresh session when context saturation flattens review quality", "The agent has done several long review rounds and suggestions are repetitive", "Trusting a tired context window to keep finding subtle flaws"],
+                  ["Fungible Swarm Launch", "Launch generalist agents only after coordination primitives are ready", "Beads are polished enough to execute and multiple agents are needed", "Launching too early, before beads are self-contained"],
+                  ["Feedback-to-Infrastructure Closure", "Convert repeated successes and failures into better tools, skills, and instructions", "The same confusion or recovery pattern appears repeatedly in CASS", "Improving the code but never improving the method that produced it"],
+                ]}
+              />
+            </SubSection>
+
+            <SubSection title="Common Problems from Real Deployments">
+              <BulletList items={[
+                <><strong>Agent Mail CLI availability:</strong> Sometimes the binary is not at the expected path; agents fall back to REST API calls.</>,
+                <><strong>Context window exhaustion:</strong> Agents typically manage 2-3 polishing passes before needing a fresh session.</>,
+                <><strong>Duplicate beads at scale:</strong> Large bead sets (100+) develop duplicates; dedicated dedup passes are necessary.</>,
+                <><strong>Plan-bead gap:</strong> The synthesis step sometimes stalls between plan revision and bead creation; always explicitly transition.</>,
+              ]} />
             </SubSection>
 
             <SubSection title="Getting Started">

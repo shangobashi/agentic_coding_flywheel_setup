@@ -31,7 +31,7 @@ export interface GeneratedCommand {
   runLocation: "local" | "vps";
 }
 
-function sshKeyPath(os: OperatingSystem): string {
+function sshKeyPath(): string {
   // Modern OpenSSH for Windows (standard in Win10+) supports ~/.ssh/
   return "~/.ssh/acfs_ed25519";
 }
@@ -84,8 +84,8 @@ export function buildInstallCommand(
  * Build all personalized commands from user inputs.
  */
 export function buildCommands(inputs: CommandBuilderInputs): GeneratedCommand[] {
-  const { ip, os, username, mode, ref } = inputs;
-  const keyPath = sshKeyPath(os);
+  const { ip, username, mode, ref } = inputs;
+  const keyPath = sshKeyPath();
   const keyPathWin = sshKeyPathWindows();
   const safeRef = normalizeGitRef(ref);
   const safeUsername = normalizeSshUsername(username);

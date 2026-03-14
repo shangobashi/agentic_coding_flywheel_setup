@@ -20,12 +20,13 @@ import { CoreLoopDiagram } from "@/components/core-flywheel/core-loop-diagram";
 import { ArtifactLadderViz } from "@/components/core-flywheel/artifact-ladder-viz";
 import { BeadComparisonViz } from "@/components/core-flywheel/bead-comparison-viz";
 import { QuickNav } from "@/components/core-flywheel/quick-nav";
+import { OperatingRhythmViz } from "@/components/core-flywheel/operating-rhythm-viz";
 
 
 export default function CoreFlywheelPage() {
   return (
     <ErrorBoundary>
-      <main className="min-h-screen bg-[#020408] selection:bg-[#FF5500]/20 selection:text-white overflow-x-hidden pb-32">
+      <main className="min-h-screen bg-[#020408] selection:bg-[#FF5500]/20 selection:text-white overflow-x-hidden pb-40">
         <Hero />
 
         {/* Floating quick-nav for desktop */}
@@ -230,6 +231,8 @@ Auth checks in place. E2E coverage for malformed upload → admin review → ret
           {/* SECTION 7: THE OPERATING RHYTHM                                */}
           {/* ============================================================= */}
           <GuideSection id="operating-rhythm" number="7" title="The Operating Rhythm">
+            <OperatingRhythmViz />
+
             <SubSection title="Step 1: Create an Excellent Markdown Plan">
               <P>Before beads or swarms or file reservations, create a serious markdown plan. Do not settle for one quick draft from one model.</P>
 

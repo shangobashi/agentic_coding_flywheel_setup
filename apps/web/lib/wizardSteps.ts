@@ -237,6 +237,19 @@ export function getHighestContiguousCompletedStep(steps: number[]): number {
   return highestContiguous;
 }
 
+export function canAccessWizardStep(steps: number[], stepId: number): boolean {
+  if (!Number.isInteger(stepId) || stepId < 1 || stepId > TOTAL_STEPS) {
+    return false;
+  }
+
+  return stepId <= getHighestContiguousCompletedStep(steps) + 1;
+}
+
+export function getNextReachableWizardStep(steps: number[]): WizardStep {
+  const nextStepId = Math.min(TOTAL_STEPS, getHighestContiguousCompletedStep(steps) + 1);
+  return getStepById(nextStepId) ?? WIZARD_STEPS[0];
+}
+
 function emitCompletedStepsChanged(steps: number[]): void {
   if (typeof window === "undefined") return;
   window.dispatchEvent(

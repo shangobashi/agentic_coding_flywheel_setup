@@ -10,7 +10,9 @@ import { HelpPanel } from "@/components/wizard/HelpPanel";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import {
   WIZARD_STEPS,
-  getHighestContiguousCompletedStep,
+  canAccessWizardStep,
+  getCompletedSteps,
+  getNextReachableWizardStep,
   getStepBySlug,
   useCompletedSteps,
 } from "@/lib/wizardSteps";
@@ -32,14 +34,11 @@ export default function WizardLayout({
     const step = getStepBySlug(currentSlug);
     return step?.id ?? 1;
   }, [currentSlug]);
+  const hideSharedStepChrome = isBonusRoute;
 
   const prevStep = WIZARD_STEPS.find((s) => s.id === currentStep - 1);
   const nextStep = WIZARD_STEPS.find((s) => s.id === currentStep + 1);
   const [completedSteps] = useCompletedSteps();
-  const highestCompleted = useMemo(
-    () => getHighestContiguousCompletedStep(completedSteps),
-    [completedSteps],
-  );
 
   const { validate, validationErrors, clearErrors } = useStepValidation();
 
@@ -47,11 +46,23 @@ export default function WizardLayout({
     clearErrors();
   }, [pathname, clearErrors]);
 
+  useEffect(() => {
+    if (hideSharedStepChrome) return;
+
+    const persistedSteps = getCompletedSteps();
+    if (canAccessWizardStep(persistedSteps, currentStep)) {
+      return;
+    }
+
+    const redirectStep = getNextReachableWizardStep(persistedSteps);
+    router.replace(withCurrentSearch(`/wizard/${redirectStep.slug}`));
+  }, [currentStep, hideSharedStepChrome, router]);
+
   const handleStepClick = useCallback(
     (stepId: number) => {
       const step = WIZARD_STEPS.find((s) => s.id === stepId);
       if (!step) return;
-      const isStepReachable = completedSteps.includes(stepId) || stepId <= highestCompleted + 1;
+      const isStepReachable = canAccessWizardStep(completedSteps, stepId);
       if (!isStepReachable) return;
 
       // Validate the current step before allowing forward navigation.
@@ -64,11 +75,10 @@ export default function WizardLayout({
       clearErrors();
       router.push(withCurrentSearch(`/wizard/${step.slug}`));
     },
-    [router, currentStep, validate, clearErrors, completedSteps, highestCompleted]
+    [router, currentStep, validate, clearErrors, completedSteps]
   );
 
   const progress = (currentStep / WIZARD_STEPS.length) * 100;
-  const hideSharedStepChrome = isBonusRoute;
   const usesPageLevelNavigation =
     currentStep === 5 || currentStep === 12 || hideSharedStepChrome;
 

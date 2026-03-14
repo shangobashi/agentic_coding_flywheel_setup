@@ -7,7 +7,9 @@ import { Card } from "@/components/ui/card";
 import { CommandCard, CodeBlock } from "@/components/command-card";
 import { AlertCard } from "@/components/alert-card";
 import {
+  canAccessWizardStep,
   getCompletedSteps,
+  getHighestContiguousCompletedStep,
   markStepComplete,
   setCompletedSteps,
   TOTAL_STEPS,
@@ -101,9 +103,10 @@ export default function LaunchOnboardingStep() {
   });
 
   // Get user's VPS IP for reconnection instructions
-  const [vpsIP] = useVPSIP();
+  const [vpsIP, , vpsIPLoaded] = useVPSIP();
   const [sshUsername, , sshUsernameLoaded] = useSSHUsername();
-  const displayIP = vpsIP || "YOUR_VPS_IP";
+  const ready = vpsIPLoaded && sshUsernameLoaded;
+  const displayIP = vpsIP ?? "";
   const effectiveUsername = sshUsername.trim() || "ubuntu";
   const userTarget = formatSshTarget(effectiveUsername, displayIP);
   const homeDir = effectiveUsername === "root" ? "/root" : `/home/${effectiveUsername}`;
@@ -112,11 +115,22 @@ export default function LaunchOnboardingStep() {
   // Only persist full completion when the user actually reached the final step
   // through the normal flow. A direct visit/bookmark should not unlock the wizard.
   useEffect(() => {
+    if (!ready) return;
+
     const completedSteps = getCompletedSteps();
-    const canAccess = completedSteps.includes(12) && validateStep(12).valid;
+    const highestCompleted = getHighestContiguousCompletedStep(completedSteps);
+    const canAccess =
+      canAccessWizardStep(completedSteps, 13) &&
+      highestCompleted >= 12 &&
+      validateStep(12).valid;
 
     if (!canAccess) {
       router.replace(withCurrentSearch("/wizard/status-check"));
+      return;
+    }
+
+    if (vpsIP === null) {
+      router.replace(withCurrentSearch("/wizard/create-vps"));
       return;
     }
 
@@ -127,9 +141,9 @@ export default function LaunchOnboardingStep() {
     // Use setTimeout to avoid the ESLint set-state-in-effect rule, since
     // this unlock is logically part of the navigation guard check above.
     setTimeout(() => setIsUnlocked(true), 0);
-  }, [markComplete, router]);
+  }, [markComplete, ready, router, vpsIP]);
 
-  if (!isUnlocked || !sshUsernameLoaded) {
+  if (!isUnlocked || !ready || vpsIP === null) {
     return (
       <div className="flex items-center justify-center py-12">
         <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
