@@ -53,15 +53,17 @@ _notif_config_write() {
     if grep -qE "^\s*${key}\s*:" "$ACFS_CONFIG_FILE" 2>/dev/null; then
         # Update existing key in-place (avoid sed delimiter and backreference bugs)
         local temp_file
-        temp_file=$(mktemp)
-        while IFS= read -r line || [[ -n "$line" ]]; do
-            if [[ "$line" =~ ^[[:space:]]*${key}[[:space:]]*: ]]; then
-                printf '%s: %s\n' "$key" "$value"
-            else
-                printf '%s\n' "$line"
-            fi
-        done < "$ACFS_CONFIG_FILE" > "$temp_file"
-        mv "$temp_file" "$ACFS_CONFIG_FILE"
+        temp_file=$(mktemp "${TMPDIR:-/tmp}/acfs_config.XXXXXX" 2>/dev/null) || temp_file=""
+        if [[ -n "$temp_file" ]]; then
+            while IFS= read -r line || [[ -n "$line" ]]; do
+                if [[ "$line" =~ ^[[:space:]]*${key}[[:space:]]*: ]]; then
+                    printf '%s: %s\n' "$key" "$value"
+                else
+                    printf '%s\n' "$line"
+                fi
+            done < "$ACFS_CONFIG_FILE" > "$temp_file"
+            mv "$temp_file" "$ACFS_CONFIG_FILE"
+        fi
     else
         # Append new key
         printf '%s: %s\n' "$key" "$value" >> "$ACFS_CONFIG_FILE"

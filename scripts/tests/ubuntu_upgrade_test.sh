@@ -200,6 +200,36 @@ test_version_number_conversion() {
     fi
 }
 
+test_version_number_parser_edge_cases() {
+    log_test "Version Number Parser Edge Cases"
+
+    local result=""
+
+    result="$(
+        ubuntu_get_version_string() { printf '%s\n' '24.04.1'; }
+        ubuntu_get_version_number
+    )"
+    assert_equals "2404" "$result" "24.04.1 parses to 2404"
+
+    if (
+        ubuntu_get_version_string() { printf '%s\n' '24'; }
+        ubuntu_get_version_number >/dev/null
+    ); then
+        log_fail "Bare major version should be rejected"
+    else
+        log_pass "Bare major version is rejected"
+    fi
+
+    if (
+        ubuntu_get_version_string() { printf '%s\n' '24.04.beta'; }
+        ubuntu_get_version_number >/dev/null
+    ); then
+        log_fail "Non-numeric patch suffix should be rejected"
+    else
+        log_pass "Non-numeric patch suffix is rejected"
+    fi
+}
+
 test_version_comparison() {
     log_test "Version Comparison (ubuntu_version_gte)"
 
@@ -470,6 +500,7 @@ run_all_tests() {
     # Run test suites
     echo "--- Version Detection Tests ---"
     test_version_number_conversion || true
+    test_version_number_parser_edge_cases || true
     test_version_comparison || true
     test_lts_detection || true
     echo ""

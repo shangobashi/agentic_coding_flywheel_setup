@@ -714,13 +714,15 @@ cleanup_legacy_git_safety_guard() {
             # Check if git_safety_guard is referenced in hooks
             if grep -q "git_safety_guard" "$settings_file" 2>/dev/null; then
                 local tmp_settings
-                tmp_settings=$(mktemp)
-                # Remove any hook entries containing git_safety_guard
-                if jq 'walk(if type == "object" and .hooks then .hooks |= map(select(. | tostring | contains("git_safety_guard") | not)) else . end)' "$settings_file" > "$tmp_settings" 2>/dev/null; then
-                    mv "$tmp_settings" "$settings_file" && cleaned=true
-                    log_to_file "Cleaned git_safety_guard references from $settings_file"
-                else
-                    rm -f "$tmp_settings"
+                tmp_settings=$(mktemp "${TMPDIR:-/tmp}/acfs_settings.XXXXXX" 2>/dev/null) || tmp_settings=""
+                if [[ -n "$tmp_settings" ]]; then
+                    # Remove any hook entries containing git_safety_guard
+                    if jq 'walk(if type == "object" and .hooks then .hooks |= map(select(. | tostring | contains("git_safety_guard") | not)) else . end)' "$settings_file" > "$tmp_settings" 2>/dev/null; then
+                        mv "$tmp_settings" "$settings_file" && cleaned=true
+                        log_to_file "Cleaned git_safety_guard references from $settings_file"
+                    else
+                        rm -f "$tmp_settings"
+                    fi
                 fi
             fi
         fi

@@ -1793,6 +1793,26 @@ state_should_skip_phase() {
                 fi
             done
         fi
+
+        # Also check ONLY_PHASES (bd-21kh). If the user explicitly requested
+        # this phase, it should run even if previously completed.
+        if [[ "${ONLY_PHASES+x}" == "x" ]] && [[ ${#ONLY_PHASES[@]} -gt 0 ]]; then
+            local -A _manifest_phase_to_id_only=(
+                [1]="user_setup" [2]="user_setup"
+                [3]="filesystem" [4]="shell_setup"
+                [5]="cli_tools"  [6]="languages"
+                [7]="agents"     [8]="cloud_db"
+                [9]="stack"      [10]="finalize"
+            )
+            local _target_phase
+            for _target_phase in "${ONLY_PHASES[@]}"; do
+                if [[ "${_manifest_phase_to_id_only[$_target_phase]:-}" == "$phase_id" ]]; then
+                    # Explicitly requested phase — don't skip
+                    return 1
+                fi
+            done
+        fi
+
         return 0
     fi
 

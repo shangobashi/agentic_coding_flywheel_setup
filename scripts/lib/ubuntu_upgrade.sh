@@ -42,13 +42,21 @@ declare -f log_info &>/dev/null || log_info() { log_detail "$1"; }
 # e.g., 24.04 -> 2404, 25.10 -> 2510, 24.04.1 -> 2404
 # Returns: version number on stdout, or empty if not Ubuntu
 ubuntu_get_version_number() {
-    local version major minor
+    local version major minor minor_full
     version=$(ubuntu_get_version_string) || return 1
     if [[ -z "$version" ]]; then
         return 1
     fi
+    # Accept standard major.minor and patch-level major.minor.patch forms only.
+    # Reject malformed values like "24" which would otherwise parse as 2424.
+    if [[ ! "$version" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+        return 1
+    fi
     major="${version%%.*}"
-    minor="${version#*.}"
+    # Remove everything after the first dot to get the rest
+    minor_full="${version#*.}"
+    # Remove everything after the second dot if it exists (e.g. 24.04.1 -> 04)
+    minor="${minor_full%%.*}"
     
     # Handle single-part versions or completely malformed ones safely
     if [[ -z "$major" ]] || [[ -z "$minor" ]] || ! [[ "$major" =~ ^[0-9]+$ ]] || ! [[ "$minor" =~ ^[0-9]+$ ]]; then
