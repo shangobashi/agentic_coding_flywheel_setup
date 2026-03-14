@@ -73,7 +73,8 @@ function tick(state: SimState): SimState {
   const agents = state.agents.map(a => ({ ...a, justCompleted: Math.max(0, a.justCompleted - 1) }));
   const beads = state.beads.map(b => ({ ...b }));
   const log = [...state.log];
-  let { killed, recovered, completed } = state;
+  const { killed } = state;
+  let { recovered, completed } = state;
 
   // 1. Mark orphaned beads (assigned to dead agents)
   for (const bead of beads) {
