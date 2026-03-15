@@ -5,7 +5,7 @@
  * Uses TanStack Query for React state management with localStorage persistence.
  */
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { safeGetItem, safeGetJSON, safeSetItem, safeSetJSON } from "./utils";
 
@@ -67,20 +67,26 @@ function emitUserPreferencesUpdate() {
   window.dispatchEvent(new Event(USER_PREFERENCES_EVENT));
 }
 
-function subscribeToUserPreferencesUpdates(onChange: () => void): () => void {
-  if (typeof window === "undefined") {
-    return () => undefined;
-  }
-
-  window.addEventListener(USER_PREFERENCES_EVENT, onChange);
-  window.addEventListener("storage", onChange);
-  window.addEventListener("popstate", onChange);
-
-  return () => {
-    window.removeEventListener(USER_PREFERENCES_EVENT, onChange);
-    window.removeEventListener("storage", onChange);
-    window.removeEventListener("popstate", onChange);
-  };
+/**
+ * Subscribes a TanStack Query to external writes (other tabs, imperative setters).
+ * Invalidates the query whenever localStorage or URL params change externally.
+ */
+function usePreferenceSync(queryKey: readonly string[]) {
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const invalidate = () => {
+      queryClient.invalidateQueries({ queryKey: [...queryKey] });
+    };
+    window.addEventListener(USER_PREFERENCES_EVENT, invalidate);
+    window.addEventListener("storage", invalidate);
+    window.addEventListener("popstate", invalidate);
+    return () => {
+      window.removeEventListener(USER_PREFERENCES_EVENT, invalidate);
+      window.removeEventListener("storage", invalidate);
+      window.removeEventListener("popstate", invalidate);
+    };
+  }, [queryClient, queryKey]);
 }
 
 /**
@@ -113,6 +119,7 @@ export const userPreferencesKeys = {
   installMode: ["userPreferences", "installMode"] as const,
   sshUsername: ["userPreferences", "sshUsername"] as const,
   acfsRef: ["userPreferences", "acfsRef"] as const,
+  createVPSChecklist: ["userPreferences", "createVPSChecklist"] as const,
 };
 
 /**
@@ -236,64 +243,54 @@ export function isValidIP(ip: string): boolean {
 }
 
 // --- React Hooks for User Preferences ---
-// Using local state + effects for SSR-safe localStorage access.
-// Also provides a `loaded` boolean so callers can avoid redirect races.
+// Uses TanStack Query for SSR-safe reactive state backed by localStorage.
+// Each hook returns [value, setter, loaded] to match the existing API.
 
 /**
  * Hook to get and set the user's operating system.
- * Uses SSR-safe localStorage loading + an explicit `loaded` flag.
  */
 export function useUserOS(): [OperatingSystem | null, (os: OperatingSystem) => void, boolean] {
-  const [userOSState, setUserOSState] = useState<{
-    os: OperatingSystem | null;
-    loaded: boolean;
-  }>({ os: null, loaded: false });
+  const queryClient = useQueryClient();
+  usePreferenceSync(userPreferencesKeys.userOS);
 
-  useEffect(() => {
-    const syncState = () => {
-      setUserOSState({ os: getUserOS(), loaded: true });
-    };
-
-    syncState();
-    return subscribeToUserPreferencesUpdates(syncState);
-  }, []);
+  const { data, status } = useQuery({
+    queryKey: userPreferencesKeys.userOS,
+    queryFn: getUserOS,
+    staleTime: 0,
+    gcTime: Infinity,
+  });
 
   const setOS = useCallback((newOS: OperatingSystem) => {
     if (setUserOS(newOS)) {
-      setUserOSState({ os: getUserOS(), loaded: true });
+      queryClient.setQueryData(userPreferencesKeys.userOS, getUserOS());
     }
-  }, []);
+  }, [queryClient]);
 
-  return [userOSState.os, setOS, userOSState.loaded];
+  return [data ?? null, setOS, status === "success"];
 }
 
 /**
  * Hook to get and set the VPS IP address.
- * Uses SSR-safe localStorage loading + an explicit `loaded` flag.
  */
 export function useVPSIP(): [string | null, (ip: string) => void, boolean] {
-  const [vpsIPState, setVpsIPState] = useState<{
-    ip: string | null;
-    loaded: boolean;
-  }>({ ip: null, loaded: false });
+  const queryClient = useQueryClient();
+  usePreferenceSync(userPreferencesKeys.vpsIP);
 
-  useEffect(() => {
-    const syncState = () => {
-      setVpsIPState({ ip: getVPSIP(), loaded: true });
-    };
-
-    syncState();
-    return subscribeToUserPreferencesUpdates(syncState);
-  }, []);
+  const { data, status } = useQuery({
+    queryKey: userPreferencesKeys.vpsIP,
+    queryFn: getVPSIP,
+    staleTime: 0,
+    gcTime: Infinity,
+  });
 
   const setIP = useCallback((newIP: string) => {
     const normalized = newIP.trim();
     if (setVPSIP(normalized)) {
-      setVpsIPState({ ip: normalized, loaded: true });
+      queryClient.setQueryData(userPreferencesKeys.vpsIP, getVPSIP());
     }
-  }, []);
+  }, [queryClient]);
 
-  return [vpsIPState.ip, setIP, vpsIPState.loaded];
+  return [data ?? null, setIP, status === "success"];
 }
 
 export function getCreateVPSChecklist(): string[] {
@@ -309,27 +306,23 @@ export function setCreateVPSChecklist(items: string[]): boolean {
 }
 
 export function useCreateVPSChecklist(): [string[], (items: string[]) => void, boolean] {
-  const [state, setState] = useState<{ items: string[]; loaded: boolean }>({
-    items: [],
-    loaded: false,
+  const queryClient = useQueryClient();
+  usePreferenceSync(userPreferencesKeys.createVPSChecklist);
+
+  const { data, status } = useQuery({
+    queryKey: userPreferencesKeys.createVPSChecklist,
+    queryFn: getCreateVPSChecklist,
+    staleTime: 0,
+    gcTime: Infinity,
   });
-
-  useEffect(() => {
-    const syncState = () => {
-      setState({ items: getCreateVPSChecklist(), loaded: true });
-    };
-
-    syncState();
-    return subscribeToUserPreferencesUpdates(syncState);
-  }, []);
 
   const setChecklist = useCallback((items: string[]) => {
     if (setCreateVPSChecklist(items)) {
-      setState({ items: getCreateVPSChecklist(), loaded: true });
+      queryClient.setQueryData(userPreferencesKeys.createVPSChecklist, getCreateVPSChecklist());
     }
-  }, []);
+  }, [queryClient]);
 
-  return [state.items, setChecklist, state.loaded];
+  return [data ?? [], setChecklist, status === "success"];
 }
 
 /**
@@ -382,27 +375,23 @@ export function setInstallMode(mode: InstallMode): boolean {
 }
 
 export function useInstallMode(): [InstallMode, (mode: InstallMode) => void, boolean] {
-  const [state, setState] = useState<{ mode: InstallMode; loaded: boolean }>({
-    mode: "vibe",
-    loaded: false,
+  const queryClient = useQueryClient();
+  usePreferenceSync(userPreferencesKeys.installMode);
+
+  const { data, status } = useQuery({
+    queryKey: userPreferencesKeys.installMode,
+    queryFn: getInstallMode,
+    staleTime: 0,
+    gcTime: Infinity,
   });
-
-  useEffect(() => {
-    const syncState = () => {
-      setState({ mode: getInstallMode(), loaded: true });
-    };
-
-    syncState();
-    return subscribeToUserPreferencesUpdates(syncState);
-  }, []);
 
   const setMode = useCallback((newMode: InstallMode) => {
     if (setInstallMode(newMode)) {
-      setState({ mode: getInstallMode(), loaded: true });
+      queryClient.setQueryData(userPreferencesKeys.installMode, getInstallMode());
     }
-  }, []);
+  }, [queryClient]);
 
-  return [state.mode, setMode, state.loaded];
+  return [data ?? "vibe", setMode, status === "success"];
 }
 
 // --- SSH Username ---
@@ -427,27 +416,23 @@ export function setSSHUsername(username: string): boolean {
 }
 
 export function useSSHUsername(): [string, (username: string) => void, boolean] {
-  const [state, setState] = useState<{ username: string; loaded: boolean }>({
-    username: "ubuntu",
-    loaded: false,
+  const queryClient = useQueryClient();
+  usePreferenceSync(userPreferencesKeys.sshUsername);
+
+  const { data, status } = useQuery({
+    queryKey: userPreferencesKeys.sshUsername,
+    queryFn: getSSHUsername,
+    staleTime: 0,
+    gcTime: Infinity,
   });
-
-  useEffect(() => {
-    const syncState = () => {
-      setState({ username: getSSHUsername(), loaded: true });
-    };
-
-    syncState();
-    return subscribeToUserPreferencesUpdates(syncState);
-  }, []);
 
   const setUsername = useCallback((newUsername: string) => {
     if (setSSHUsername(newUsername)) {
-      setState({ username: getSSHUsername(), loaded: true });
+      queryClient.setQueryData(userPreferencesKeys.sshUsername, getSSHUsername());
     }
-  }, []);
+  }, [queryClient]);
 
-  return [state.username, setUsername, state.loaded];
+  return [data ?? "ubuntu", setUsername, status === "success"];
 }
 
 // --- ACFS Ref (git ref pin) ---
@@ -471,25 +456,21 @@ export function setACFSRef(ref: string | null): boolean {
 }
 
 export function useACFSRef(): [string | null, (ref: string | null) => void, boolean] {
-  const [state, setState] = useState<{ ref: string | null; loaded: boolean }>({
-    ref: null,
-    loaded: false,
+  const queryClient = useQueryClient();
+  usePreferenceSync(userPreferencesKeys.acfsRef);
+
+  const { data, status } = useQuery({
+    queryKey: userPreferencesKeys.acfsRef,
+    queryFn: getACFSRef,
+    staleTime: 0,
+    gcTime: Infinity,
   });
-
-  useEffect(() => {
-    const syncState = () => {
-      setState({ ref: getACFSRef(), loaded: true });
-    };
-
-    syncState();
-    return subscribeToUserPreferencesUpdates(syncState);
-  }, []);
 
   const setRef = useCallback((newRef: string | null) => {
     if (setACFSRef(newRef)) {
-      setState({ ref: getACFSRef(), loaded: true });
+      queryClient.setQueryData(userPreferencesKeys.acfsRef, getACFSRef());
     }
-  }, []);
+  }, [queryClient]);
 
-  return [state.ref, setRef, state.loaded];
+  return [data ?? null, setRef, status === "success"];
 }
