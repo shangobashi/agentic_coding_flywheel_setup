@@ -473,7 +473,7 @@ const SCENARIOS: ScenarioStep[] = [
     ],
     timing: { dns: 3, tls: 45, proxyProcessing: 8, serverWait: 920, transfer: 24 },
     totalLatency: 1000,
-    bodyPreview: '{\n  "model": "claude-sonnet-4-20250514",\n  "content": [{\n    "text": "Decrypted response visible"\n  }]\n}',
+    bodyPreview: '{\n  "model": "claude-3-7-sonnet-20250219",\n  "content": [{\n    "text": "Decrypted response visible"\n  }]\n}',
     rules: [
       { id: 'r1', type: 'inspect', pattern: '*.anthropic.com', action: 'TLS intercept + log body', matched: true },
       { id: 'r2', type: 'modify', pattern: '*', action: 'Add trace header', matched: true },
@@ -811,7 +811,7 @@ function LogStream({ logs }: { logs: LogEntry[] }) {
 
 function FlowStateBadge({ state }: { state: ScenarioStep['flowState'] }) {
   const config: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-    normal: { label: 'Pass Through', color: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400', icon: <CheckCircle className="h-3 w-3" /> },
+    normal: { label: 'PassThrough', color: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400', icon: <CheckCircle className="h-3 w-3" /> },
     modified: { label: 'Headers Modified', color: 'border-amber-500/30 bg-amber-500/10 text-amber-400', icon: <Settings className="h-3 w-3" /> },
     blocked: { label: 'Request Blocked', color: 'border-red-500/30 bg-red-500/10 text-red-400', icon: <Ban className="h-3 w-3" /> },
     'rate-limited': { label: 'Rate Limited', color: 'border-orange-500/30 bg-orange-500/10 text-orange-400', icon: <Gauge className="h-3 w-3" /> },
