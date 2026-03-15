@@ -4,6 +4,8 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useForm } from "@tanstack/react-form";
+import { zodValidator } from "@tanstack/zod-form-adapter";
+import { z } from "zod";
 import { Check, AlertCircle, Server, ChevronDown, HardDrive, ShieldCheck, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -206,6 +208,7 @@ export default function CreateVPSPage() {
     defaultValues: {
       ipAddress: storedIP ?? "",
     },
+    validatorAdapter: zodValidator(),
     onSubmit: async ({ value }) => {
       markCompleteRef.current({ ip_entered: true });
       setStoredIP(value.ipAddress);
@@ -371,30 +374,17 @@ export default function CreateVPSPage() {
           <form.Field
             name="ipAddress"
             validators={{
-              onChange: ({ value }) => {
-                if (!value) return undefined;
-                if (!isValidIP(value)) {
-                  return "Please enter a valid IP address (e.g., 203.0.113.42)";
-                }
-                return undefined;
-              },
-              onBlur: ({ value }) => {
-                // Duplicate validation on blur for Firefox/Safari compatibility
-                if (!value) return undefined;
-                if (!isValidIP(value)) {
-                  return "Please enter a valid IP address (e.g., 203.0.113.42)";
-                }
-                return undefined;
-              },
-              onSubmit: ({ value }) => {
-                if (!value) {
-                  return "Please enter your VPS IP address";
-                }
-                if (!isValidIP(value)) {
-                  return "Please enter a valid IP address";
-                }
-                return undefined;
-              },
+              onChange: z.string().refine(
+                (v) => !v || isValidIP(v),
+                "Please enter a valid IP address (e.g., 203.0.113.42)"
+              ),
+              onBlur: z.string().refine(
+                (v) => !v || isValidIP(v),
+                "Please enter a valid IP address (e.g., 203.0.113.42)"
+              ),
+              onSubmit: z.string()
+                .min(1, "Please enter your VPS IP address")
+                .refine(isValidIP, "Please enter a valid IP address"),
             }}
           >
             {(field) => {
