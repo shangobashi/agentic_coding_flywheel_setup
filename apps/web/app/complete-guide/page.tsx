@@ -123,6 +123,16 @@ export default function CompleteGuidePage() {
               <P>Debates belong in planning, not implementation. As many important disagreements as possible should happen before the swarm is burning expensive implementation tokens. Implementation can still surface surprises, but the posture of the workflow is to front-load decisions into plan space.</P>
             </SubSection>
 
+            <SubSection title="You Don't Need to Know Everything Upfront">
+              <P>The most common objection to spending 85% of your time on planning: &quot;I don&apos;t really know all the requirements at the beginning, and I need the flexibility to change things later.&quot; This is not at all in tension with the methodology. Thorough planning does not mean transcribing requirements you already know. It means using frontier models to <Hl>discover requirements you never would have found on your own</Hl>, iteratively, while changes are still cheap.</P>
+
+              <P>When you paste a rough concept into GPT Pro and ask for a comprehensive plan, the model surfaces dozens of edge cases, architectural considerations, and workflow details you had not thought of. When you show that plan to three competing models, each one finds blind spots the others missed. When you run five rounds of refinement, each round uncovers issues invisible in the previous round. By the time you start implementation, you know far more about your own project than you would have discovered through months of coding and refactoring.</P>
+
+              <P>This extends even further when adding major features to existing projects. You can point an agent at an entirely separate open-source project, have it study that project&apos;s architecture, and ask it to reimagine the strongest ideas through the lens of your own project&apos;s unique capabilities. Requirements emerge from the research itself. The methodology does not demand omniscience up front; it demands a willingness to let the models do deep, iterative exploration before committing to implementation.</P>
+
+              <BlockQuote>And that isn&apos;t at all in tension with my approach, as I hope to illustrate here.</BlockQuote>
+            </SubSection>
+
             <SubSection title="Three Reasoning Spaces">
               <P>The methodology separates work into three spaces, each with a different artifact and a different question it answers:</P>
 
@@ -434,6 +444,108 @@ Also, make sure that as part of these beads, we include comprehensive unit tests
               where="When the overhead of formal bead creation would slow you down more than it helps"
               whyItWorks="This prompt forces the agent to externalize its local execution plan into a durable checklist instead of juggling a sprawling ad-hoc task in conversational memory. In tools that support a built-in TODO system, that checklist survives compaction. Under the hood, it creates a temporary execution scaffold that is lighter than full bead creation and much safer than 'just remember everything.' This is the right mode when the work is too small to justify immediate bead formalization but too large to trust to ephemeral context alone. When NOT to use it: if the change is expanding, depends on other work, needs graph-aware sequencing, or should be part of the permanent project record. In those cases, stop and convert it into proper beads. If an ad-hoc change later proves important, retroactively create beads for the completed work to preserve continuity."
             />
+
+            <SubSection title="Major Features: Research and Reimagine">
+              <P>The Idea-Wizard handles bounded improvements, new feature ideas, and fixes. But sometimes you want to add an entirely new capability to an existing project, something ambitious enough that it deserves the same depth of planning as a greenfield project, and where an external project has already solved a related problem worth studying. For these, there is a more powerful approach: <Hl>study an external project that already solves a related problem, then reimagine its strongest ideas through the lens of your own project&apos;s unique strengths</Hl>.</P>
+
+              <P>As a concrete example: adding a robust messaging substrate to the Asupersync project. Rather than designing from scratch or doing a straightforward port, the approach was to study <a href="https://github.com/nats-io/nats-server" target="_blank" rel="noopener noreferrer" className="text-[#FF5500] hover:text-[#FFBD2E] underline underline-offset-4 decoration-[#FF5500]/30 hover:decoration-[#FFBD2E]/50 transition-colors">NATS</a> (a mature, production-grade messaging system in Go), extract its strongest architectural ideas, and reimagine them using Asupersync&apos;s correct-by-design structured concurrency primitives to create something neither project could achieve alone.</P>
+
+              <TipBox variant="info">
+                Start from a session that already has context about your project. The model should already understand your project&apos;s architecture, primitives, and unique value before you ask it to study an external system. This shared context is what makes the &quot;reimagine&quot; step produce genuinely novel combinations rather than shallow ports.
+              </TipBox>
+
+              <P>The process follows a specific prompt sequence. Each step builds on the previous, alternating between expansion (going deeper, inverting the analysis, pushing for architectural innovation) and hardening (repeated blunder hunts that stress-test the result):</P>
+
+              <PromptBlock
+                title="Step 1: Investigate and Propose"
+                prompt={`I want you to clone https://github.com/<external-project> to tmp and then investigate it and look for useful ideas that we can take from that and reimagine in highly accretive ways on top of existing <your project> primitives that really leverage the special, innovative concepts and value-add from both projects to make something truly special and radically innovative. Write up a proposal document, PROPOSAL_TO_INTEGRATE_IDEAS_FROM_<EXTERNAL>_INTO_<YOUR_PROJECT>.md`}
+                where="Codex or Claude Code, in a session with existing project context"
+                whyItWorks="By asking the agent to clone and investigate the external project firsthand, you get specific, grounded proposals instead of vague suggestions based on training data alone. The 'reimagine in highly accretive ways' framing prevents a shallow porting exercise and pushes toward genuinely novel combinations."
+              />
+
+              <P>The first draft is always too conservative. Push for depth and ambition:</P>
+
+              <PromptBlock
+                title="Step 2: Iterative Deepening"
+                prompt={`OK, that's a decent start, but you barely scratched the surface here. You must go way deeper and think more profoundly and with more ambition and boldness and come up with things that are legitimately "radically innovative" and disruptive because they are so compelling, useful, accretive, etc.`}
+                where="Same session, immediately after the first proposal"
+                whyItWorks="Models produce conservative initial proposals to avoid being wrong. Explicit pressure to go deeper unlocks the genuinely creative architectural ideas that make the integration worthwhile rather than incremental."
+              />
+
+              <P>Then invert the analysis. This technique surfaces opportunities that only exist because of your project&apos;s unique capabilities:</P>
+
+              <PromptBlock
+                title="Step 3: Inversion Analysis"
+                prompt={`Now "invert" the analysis: what are things that we can do because we are starting with <your unique primitives/capabilities> that <the external project> simply could never do even if they wanted to because they are working from far less rich primitives that do not offer the sort of guarantees we have?`}
+                where="Same session, after deepening"
+                whyItWorks="Standard analysis asks 'what can we learn from them?' Inversion asks 'what can we do that they fundamentally cannot?' This surfaces the highest-value integration points: capabilities that are genuinely novel rather than just reimplementations of features the external project already has."
+              />
+
+              <P>After each major expansion, run a blunder-hunt pass. The critical technique: <strong>repeat the exact same critique prompt 5 times in a row</strong>. Each pass finds things the previous pass missed, because the model is forced to look beyond the issues it already identified:</P>
+
+              <PromptBlock
+                title="Step 4: Repeated Blunder Hunt (Run 5x)"
+                prompt={`Look over everything in the proposal for blunders, mistakes, misconceptions, logical flaws, errors of omission, oversights, sloppy thinking, etc.`}
+                where="Run this exact prompt 5 times consecutively after each major proposal expansion"
+                whyItWorks="Models tend to find 15-20 issues on the first pass and declare satisfaction. Running the exact same prompt again forces them past the issues they already found. By the fifth pass, you have caught subtle logical flaws and architectural inconsistencies that no single review pass would surface. This is the critique equivalent of the bead polishing convergence pattern from Section 5."
+              />
+
+              <P>Continue pushing for specific architectural innovations. In the Asupersync example, this meant asking: &quot;Can you think of a clever, radically innovative way to leverage our unique capabilities so that the messaging substrate doesn&apos;t require a separate external server, but each client can self-discover and collectively act as both client and server?&quot; Each major architectural addition gets another round of 5x blunder hunts.</P>
+
+              <P>When the proposal has items flagged as needing follow-on design work, address them explicitly rather than leaving them vague:</P>
+
+              <PromptBlock
+                title="Step 5: Close Design Gaps"
+                prompt={`OK so then add this stuff to the proposal, using the very smartest ideas from your alien skills to inform it and your best judgment based on the very latest and smartest academic research:
+    - <specific design gap identified in blunder hunt>
+    - <another specific gap>`}
+                where="Same session, after blunder hunts surface specific open questions"
+                whyItWorks="Blunder hunts often identify areas where the proposal is 'honest but incomplete' rather than wrong. This prompt converts those honest gaps into concrete design decisions, preventing them from becoming ambiguity that later infects the beads and implementation."
+              />
+
+              <P>Before sending the proposal for multi-model feedback, make it self-contained. Other models do not have your session context, so the proposal must include everything they need to give useful critique:</P>
+
+              <PromptBlock
+                title="Step 6: Self-Contained for Cross-Model Review"
+                prompt={`OK now we need to make the proposal self-contained so that we can show it to another model such as GPT Pro and have that model understand absolutely anything that might be relevant to understanding and being able to suggest useful revisions to the proposal or to find flaws in the plans. To that end, I need you to add comprehensive background sections about what <your project> is and how it works, what makes it special/compelling, etc. And then do the same in another background section all about <external project> and what it is and what makes it special/compelling, how it works, etc.`}
+                where="After the proposal reaches a stable, ambitious state"
+                whyItWorks="Cross-model review only works if every model can fully understand the proposal without access to your project. Adding comprehensive background sections prevents other models from making shallow suggestions based on incomplete understanding. This preparation step is what makes the multi-model feedback loop genuinely useful rather than superficial."
+              />
+
+              <P>Follow this with another 5x blunder hunt, then de-slopify the document. Now you are ready for multi-model triangulation.</P>
+
+              <P>Send the self-contained proposal to GPT Pro, Claude Opus, Gemini with Deep Think, and Grok Heavy, all with the same prompt asking for improvements in git-diff format:</P>
+
+              <PromptBlock
+                title="Step 7: Multi-Model Feedback"
+                prompt={`How can we improve this proposal to make it smarter and better-- to make the most radically innovative and accretive and useful and compelling additions and revisions you can possibly imagine. Give me your proposed changes in the form of git-diff style changes against the file below, which is named PROPOSAL_TO_INTEGRATE_IDEAS_FROM_<EXTERNAL>_INTO_<YOUR_PROJECT>.md:
+
+<the complete proposal document>`}
+                where="GPT Pro, Claude Opus (web), Gemini Deep Think, and Grok Heavy -- all four, independently"
+                whyItWorks="Each model has different architectural tastes and blind spots. Asking for git-diff format forces precision: the models cannot hand-wave about what should change, they have to show the exact text transformations. This makes the synthesis step tractable."
+              />
+
+              <P>Feed the competing feedback from all models into GPT Pro using the &quot;best of all worlds&quot; synthesis prompt from Section 3. Apply the resulting diffs back to the proposal document in Codex or Claude Code, then de-slopify the final result.</P>
+
+              <DataTable
+                headers={["Step", "Purpose", "Repetitions"]}
+                rows={[
+                  ["Investigate and propose", "Ground the proposal in real study of the external project", "1"],
+                  ["Iterative deepening", "Push past conservative initial suggestions", "1-2"],
+                  ["Inversion analysis", "Find opportunities unique to your project's capabilities", "1"],
+                  ["5x blunder hunt", "Ruthlessly verify after each expansion", "5x after each major step"],
+                  ["Architectural innovation", "Push for specific novel design choices", "As needed"],
+                  ["Close design gaps", "Convert honest unknowns into concrete decisions", "As needed"],
+                  ["Self-contained background", "Prepare for cross-model review", "1"],
+                  ["Multi-model feedback + synthesis", "Triangulate from 4 frontier models", "1"],
+                  ["Apply diffs + de-slopify", "Produce the final integrated proposal", "1"],
+                ]}
+              />
+
+              <P>You can see this exact process applied to Asupersync&apos;s NATS integration: the <a href="https://github.com/Dicklesworthstone/asupersync/blob/main/PROPOSAL_TO_INTEGRATE_IDEAS_FROM_NATS_INTO_ASUPERSYNC.md" target="_blank" rel="noopener noreferrer" className="text-[#FF5500] hover:text-[#FFBD2E] underline underline-offset-4 decoration-[#FF5500]/30 hover:decoration-[#FFBD2E]/50 transition-colors">initial proposal</a>, the <a href="https://github.com/Dicklesworthstone/asupersync/blob/main/PROPOSAL_TO_INTEGRATE_IDEAS_FROM_NATS_INTO_ASUPERSYNC__AFTER_FEEDBACK.md" target="_blank" rel="noopener noreferrer" className="text-[#FF5500] hover:text-[#FFBD2E] underline underline-offset-4 decoration-[#FF5500]/30 hover:decoration-[#FFBD2E]/50 transition-colors">version after multi-model feedback</a>, and the <a href="https://chatgpt.com/share/69b762f5-f3d8-8002-b6d6-56880395540d" target="_blank" rel="noopener noreferrer" className="text-[#FF5500] hover:text-[#FFBD2E] underline underline-offset-4 decoration-[#FF5500]/30 hover:decoration-[#FFBD2E]/50 transition-colors">full GPT Pro synthesis conversation</a>.</P>
+
+              <P>From here, the proposal feeds into the standard pipeline: convert to beads (Section 4), polish obsessively (Section 5), launch the swarm (Section 7). The research-driven approach adds significant front-end effort but produces proposals with a level of architectural depth and innovation that no amount of greenfield brainstorming can match, because you are standing on the shoulders of a real, battle-tested system while leveraging capabilities that system never had access to.</P>
+            </SubSection>
           </GuideSection>
 
           <Divider />
