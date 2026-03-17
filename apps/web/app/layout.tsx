@@ -49,6 +49,16 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "/",
   },
+  openGraph: {
+    type: "website",
+    siteName: "Agent Flywheel",
+    locale: "en_US",
+    url: siteUrl,
+  },
+  twitter: {
+    card: "summary_large_image",
+    creator: "@doodlestein",
+  },
   // Icons are auto-generated from icon.tsx and apple-icon.tsx
   // favicon.ico is also available as a fallback
   robots: {

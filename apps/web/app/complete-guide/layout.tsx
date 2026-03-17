@@ -1,12 +1,23 @@
 import type { Metadata } from "next";
+import { ogVersion } from "@/lib/og-version";
+
+const alt = "The Flywheel Approach to Planning & Beads Creation";
 
 export const metadata: Metadata = {
-  title:
-    "The Complete Flywheel Guide - Planning, Beads & Agent Swarms | Agent Flywheel",
+  title: "The Complete Flywheel Guide - Planning, Beads & Agent Swarms",
   description:
     "A comprehensive guide to Jeffrey Emanuel's methodology for creating software with frontier AI models, exhaustive markdown planning, beads-based task management, and coordinated agent swarms.",
   alternates: {
     canonical: "/complete-guide",
+  },
+  openGraph: {
+    type: "article",
+    url: "https://agent-flywheel.com/complete-guide",
+    images: [{ url: `/complete-guide/opengraph-image?v=${ogVersion}`, width: 1200, height: 630, alt }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: [{ url: `/complete-guide/twitter-image?v=${ogVersion}`, width: 1200, height: 600, alt }],
   },
 };
 
