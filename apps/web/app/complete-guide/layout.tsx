@@ -13,10 +13,13 @@ export const metadata: Metadata = {
   openGraph: {
     type: "article",
     url: "https://agent-flywheel.com/complete-guide",
+    siteName: "Agent Flywheel",
+    locale: "en_US",
     images: [{ url: `/complete-guide/opengraph-image?v=${ogVersion}`, width: 1200, height: 630, alt }],
   },
   twitter: {
     card: "summary_large_image",
+    creator: "@doodlestein",
     images: [{ url: `/complete-guide/twitter-image?v=${ogVersion}`, width: 1200, height: 600, alt }],
   },
 };
