@@ -1175,7 +1175,7 @@ export default function HomePage() {
             </Link>
 
             {/* Core Flywheel — Simpler Starting Point */}
-            <Link href="/core_flywheel" className="group block">
+            <Link href="/core-flywheel" className="group block">
               <motion.div
                 className="relative overflow-hidden rounded-3xl border border-[#FF5500]/20 p-px"
                 initial={{ opacity: 0, y: 40 }}

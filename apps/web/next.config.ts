@@ -31,6 +31,15 @@ const nextConfig: NextConfig = {
     // to resolve `next` and other packages when multiple lockfiles exist.
     root: workspaceRoot,
   },
+  async redirects() {
+    return [
+      {
+        source: "/core_flywheel",
+        destination: "/core-flywheel",
+        permanent: true,
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       {
