@@ -1206,7 +1206,7 @@ verify_all_installers_json() {
         total=$((total + 1))
 
         if [[ -z "$expected" ]]; then
-            skipped+=("{\"name\":\"$name\",\"reason\":\"no checksum recorded\"}")
+            skipped+=("{\"name\":\"$(_json_escape "$name")\",\"reason\":\"no checksum recorded\"}")
             continue
         fi
 
@@ -1246,11 +1246,11 @@ verify_all_installers_json() {
         if [[ -n "$fetch_error" ]]; then
             local escaped_error
             escaped_error=$(_json_escape "$fetch_error")
-            errors+=("{\"name\":\"$name\",\"url\":\"$url\",\"error\":\"$escaped_error\"}")
+            errors+=("{\"name\":\"$(_json_escape "$name")\",\"url\":\"$(_json_escape "$url")\",\"error\":\"$escaped_error\"}")
         elif [[ "$actual" == "$expected" ]]; then
-            matches+=("{\"name\":\"$name\",\"checksum\":\"$expected\"}")
+            matches+=("{\"name\":\"$(_json_escape "$name")\",\"checksum\":\"$expected\"}")
         else
-            mismatches+=("{\"name\":\"$name\",\"url\":\"$url\",\"expected\":\"$expected\",\"actual\":\"$actual\"}")
+            mismatches+=("{\"name\":\"$(_json_escape "$name")\",\"url\":\"$(_json_escape "$url")\",\"expected\":\"$expected\",\"actual\":\"$actual\"}")
         fi
     done
 

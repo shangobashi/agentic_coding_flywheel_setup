@@ -2465,13 +2465,12 @@ EOF
 update_root_agents_md() {
     log_section "Root AGENTS.md"
 
-    if ! cmd_exists flywheel_update_agents_md; then
+    if ! cmd_exists flywheel-update-agents-md; then
         local generator=""
         local candidate=""
         local -a security_candidates=(
             "${ACFS_BIN_DIR:-$HOME/.local/bin}/flywheel-update-agents-md"
             "${ACFS_HOME:-$HOME/.acfs}/bin/flywheel-update-agents-md"
-            "${ACFS_REPO_ROOT:-}/scripts/generate-root-agents-md.sh"
         )
         if [[ -n "${ACFS_REPO_ROOT:-}" ]]; then
             security_candidates+=("${ACFS_REPO_ROOT}/scripts/generate-root-agents-md.sh")
@@ -2495,7 +2494,7 @@ update_root_agents_md() {
         fi
     fi
 
-    run_cmd_sudo "Root AGENTS.md" flywheel_update_agents_md
+    run_cmd_sudo "Root AGENTS.md" flywheel-update-agents-md
 }
 
 # ============================================================

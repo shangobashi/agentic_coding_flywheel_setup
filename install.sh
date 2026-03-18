@@ -1714,13 +1714,12 @@ handle_autofix() {
 run_autofix_checks() {
     # Skip if auto-fix modules not loaded
     if [[ "${ACFS_AUTOFIX_LOADED:-0}" != "1" ]]; then
-        log_debug "Auto-fix modules not loaded, skipping auto-fix checks"
         return 0
     fi
 
     # Skip if auto-fix disabled
     if [[ "$AUTO_FIX_MODE" == "no" ]]; then
-        log_debug "Auto-fix disabled via --no-auto-fix"
+        log_debug "Auto-fix disabled via --no-auto-fix" 2>/dev/null || true
         return 0
     fi
 
@@ -5225,17 +5224,17 @@ finalize() {
         nullglob_was_set=1
     fi
     shopt -s nullglob
-    local lesson_files=(acfs/onboard/lessons/*.md)
+    local lesson_files=("${ACFS_ASSETS_DIR}/onboard/lessons/"*.md)
     if (( ! nullglob_was_set )); then
         shopt -u nullglob
     fi
     if [[ ${#lesson_files[@]} -eq 0 ]]; then
-        log_error "No onboard lessons found in acfs/onboard/lessons"
+        log_error "No onboard lessons found in ${ACFS_ASSETS_DIR}/onboard/lessons"
         return 1
     fi
     for lesson_path in "${lesson_files[@]}"; do
         lesson_name=$(basename "$lesson_path")
-        try_step "Installing onboard lesson: $lesson_name" install_asset "$lesson_path" "$ACFS_HOME/onboard/lessons/$lesson_name" || return 1
+        try_step "Installing onboard lesson: $lesson_name" install_asset "acfs/onboard/lessons/$lesson_name" "$ACFS_HOME/onboard/lessons/$lesson_name" || return 1
     done
 
     log_detail "Installing onboard command"
