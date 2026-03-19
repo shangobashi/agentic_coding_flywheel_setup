@@ -246,18 +246,6 @@ install_stack_mcp_agent_mail() {
         log_info "dry-run: install: if ! command -v am >/dev/null 2>&1; then (target_user)"
     else
         if ! run_as_target_shell <<'INSTALL_STACK_MCP_AGENT_MAIL'
-# Symlink repair: if binary exists at install dest but is not on PATH,
-# create a symlink in ~/.local/bin so `command -v am` succeeds.
-if ! command -v am >/dev/null 2>&1; then
-  am_src="$HOME/mcp_agent_mail/am"
-  am_dst="$HOME/.local/bin/am"
-  if [[ -x "$am_src" ]]; then
-    mkdir -p "$HOME/.local/bin"
-    ln -sf "$am_src" "$am_dst"
-    echo "ACFS: repaired missing am symlink: $am_dst -> $am_src" >&2
-    hash -r
-  fi
-fi
 if ! command -v am >/dev/null 2>&1; then
   echo "Agent Mail CLI missing after install" >&2
   exit 1
