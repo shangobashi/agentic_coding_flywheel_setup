@@ -1448,7 +1448,13 @@ check_stack() {
             fi
         fi
     elif [[ -d "$HOME/mcp_agent_mail" ]]; then
-        check "stack.mcp_agent_mail" "$am_label" "warn" "install directory present but am CLI is missing" "$am_install_fix"
+        if [[ -x "$HOME/mcp_agent_mail/am" ]] && ! command -v am &>/dev/null; then
+            check "symlink.am" "$am_label" "warn" \
+                "binary exists at ~/mcp_agent_mail/am but symlink missing from ~/.local/bin/am" \
+                "Fix: ln -sf ~/mcp_agent_mail/am ~/.local/bin/am (or run: acfs doctor --fix)"
+        else
+            check "stack.mcp_agent_mail" "$am_label" "warn" "install directory present but am CLI is missing" "$am_install_fix"
+        fi
     else
         check "stack.mcp_agent_mail" "$am_label" "warn" "not installed" "$am_install_fix"
     fi

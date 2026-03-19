@@ -531,6 +531,9 @@ dispatch_fix() {
         symlink.bv)
             fix_symlink_create "$check_id" "$HOME/.cargo/bin/bv" "$HOME/.local/bin/bv"
             ;;
+        symlink.am)
+            fix_symlink_create "$check_id" "$HOME/mcp_agent_mail/am" "$HOME/.local/bin/am"
+            ;;
 
         # Zsh plugins
         shell.plugins.zsh_autosuggestions)
@@ -943,28 +946,65 @@ fix_mcp_agent_mail() {
     local project_path=""
 
     if ! command -v am &>/dev/null; then
-        if [[ "$DOCTOR_FIX_DRY_RUN" == "true" ]]; then
-            FIXES_DRY_RUN+=("fix.stack.mcp_agent_mail|Install MCP Agent Mail via verified installer, then repair service state|$HOME/.mcp_agent_mail_git_mailbox_repo|verified:mcp_agent_mail --dest $HOME/mcp_agent_mail --yes")
-            doctor_fix_log DRY "Install MCP Agent Mail via verified installer, then repair service state"
-            return 0
-        fi
-
-        if doctor_fix_run_verified_installer "mcp_agent_mail" --dest "$HOME/mcp_agent_mail" --yes >/dev/null 2>&1; then
+        # Quick symlink repair: if binary exists at install dest but not on PATH
+        local am_src="$HOME/mcp_agent_mail/am"
+        local am_dst="$HOME/.local/bin/am"
+        if [[ -x "$am_src" ]]; then
+            if [[ "$DOCTOR_FIX_DRY_RUN" == "true" ]]; then
+                FIXES_DRY_RUN+=("fix.stack.mcp_agent_mail.symlink|Create am symlink: $am_dst -> $am_src|$am_dst|ln -sf $am_src $am_dst")
+                doctor_fix_log DRY "Create am symlink: $am_dst -> $am_src"
+                return 0
+            fi
+            mkdir -p "$HOME/.local/bin"
+            ln -sf "$am_src" "$am_dst"
             hash -r
             if command -v am &>/dev/null; then
-                doctor_fix_log INFO "Installed MCP Agent Mail CLI via verified installer"
-                FIXES_APPLIED+=("fix.stack.mcp_agent_mail.install|Installed MCP Agent Mail CLI via verified installer")
+                doctor_fix_log INFO "Repaired missing am symlink: $am_dst -> $am_src"
+                FIXES_APPLIED+=("fix.stack.mcp_agent_mail.symlink|Repaired missing am symlink")
                 FIX_APPLIED=$((FIX_APPLIED + 1))
                 fixed_any=true
+            fi
+        fi
+
+        # If symlink repair did not resolve the issue, fall back to full reinstall
+        if ! command -v am &>/dev/null; then
+            if [[ "$DOCTOR_FIX_DRY_RUN" == "true" ]]; then
+                FIXES_DRY_RUN+=("fix.stack.mcp_agent_mail|Install MCP Agent Mail via verified installer, then repair service state|$HOME/.mcp_agent_mail_git_mailbox_repo|verified:mcp_agent_mail --dest $HOME/mcp_agent_mail --yes")
+                doctor_fix_log DRY "Install MCP Agent Mail via verified installer, then repair service state"
+                return 0
+            fi
+
+            if doctor_fix_run_verified_installer "mcp_agent_mail" --dest "$HOME/mcp_agent_mail" --yes >/dev/null 2>&1; then
+                hash -r
+                if command -v am &>/dev/null; then
+                    doctor_fix_log INFO "Installed MCP Agent Mail CLI via verified installer"
+                    FIXES_APPLIED+=("fix.stack.mcp_agent_mail.install|Installed MCP Agent Mail CLI via verified installer")
+                    FIX_APPLIED=$((FIX_APPLIED + 1))
+                    fixed_any=true
+                else
+                    # Installer succeeded but am still not on PATH - try symlink one more time
+                    if [[ -x "$am_src" ]]; then
+                        mkdir -p "$HOME/.local/bin"
+                        ln -sf "$am_src" "$am_dst"
+                        hash -r
+                        if command -v am &>/dev/null; then
+                            doctor_fix_log INFO "Repaired missing am symlink after install: $am_dst -> $am_src"
+                            FIXES_APPLIED+=("fix.stack.mcp_agent_mail.symlink|Repaired missing am symlink after install")
+                            FIX_APPLIED=$((FIX_APPLIED + 1))
+                            fixed_any=true
+                        fi
+                    fi
+                    if ! command -v am &>/dev/null; then
+                        doctor_fix_log ERROR "Verified MCP Agent Mail install completed without providing 'am'"
+                        FIX_FAILED=$((FIX_FAILED + 1))
+                        return 1
+                    fi
+                fi
             else
-                doctor_fix_log ERROR "Verified MCP Agent Mail install completed without providing 'am'"
+                doctor_fix_log ERROR "Failed to install MCP Agent Mail via verified installer"
                 FIX_FAILED=$((FIX_FAILED + 1))
                 return 1
             fi
-        else
-            doctor_fix_log ERROR "Failed to install MCP Agent Mail via verified installer"
-            FIX_FAILED=$((FIX_FAILED + 1))
-            return 1
         fi
     elif [[ "$DOCTOR_FIX_DRY_RUN" == "true" ]]; then
         FIXES_DRY_RUN+=("fix.stack.mcp_agent_mail|Repair MCP Agent Mail and apply upstream doctor fixes|$HOME/.mcp_agent_mail_git_mailbox_repo|am doctor repair --yes && am doctor fix --yes")

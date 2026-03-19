@@ -4755,6 +4755,21 @@ NTM_CONFIG_EOF
                 chmod 755 "$tmp_install" 2>/dev/null || true
 
                 if try_step "Installing MCP Agent Mail" run_as_target bash "$tmp_install" --dest "$target_dir" --yes; then
+                    # Symlink repair: if the binary exists at the install dest but
+                    # is not reachable via PATH, create a symlink in ~/.local/bin.
+                    # This fixes the case where the installer placed the binary in
+                    # ~/mcp_agent_mail/am but nothing links it into PATH.
+                    run_as_target bash -c "
+                        if ! command -v am >/dev/null 2>&1; then
+                            am_src=\"$target_dir/am\"
+                            am_dst=\"\$HOME/.local/bin/am\"
+                            if [[ -x \"\$am_src\" ]]; then
+                                mkdir -p \"\$HOME/.local/bin\"
+                                ln -sf \"\$am_src\" \"\$am_dst\"
+                                echo \"ACFS: repaired missing am symlink: \$am_dst -> \$am_src\" >&2
+                            fi
+                        fi
+                    " || true
                     if run_as_target bash -c 'set -euo pipefail
                         command -v am >/dev/null 2>&1
                         storage_root="$HOME/.mcp_agent_mail_git_mailbox_repo"

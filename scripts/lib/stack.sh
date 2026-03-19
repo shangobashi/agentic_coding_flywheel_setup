@@ -519,6 +519,17 @@ install_mcp_agent_mail() {
         fi
     fi
 
+    # Symlink repair: if binary exists at install dest but is not on PATH,
+    # create a symlink in ~/.local/bin so `command -v am` succeeds.
+    if ! _stack_is_installed "$tool"; then
+        local am_src="$target_dir/am"
+        local am_dst="$target_home/.local/bin/am"
+        if [[ -x "$am_src" ]]; then
+            _stack_run_as_user "mkdir -p '$target_home/.local/bin' && ln -sf '$am_src' '$am_dst'" || true
+            log_detail "${STACK_NAMES[$tool]}: repaired missing am symlink ($am_dst -> $am_src)"
+        fi
+    fi
+
     if ! _stack_is_installed "$tool"; then
         log_warn "${STACK_NAMES[$tool]} CLI missing after install"
         return 1
