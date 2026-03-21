@@ -294,6 +294,22 @@ if [[ -d "$runtime_dir" ]]; then
   fi
 fi
 
+# Pre-check: determine if systemctl --user is usable.  On fresh VPS
+# installs run from root, /run/user/<uid> may exist (created by
+# install.sh Phase 1) but the D-Bus session bus may not be up yet.
+_systemctl_user_ok=false
+if command -v systemctl >/dev/null 2>&1; then
+  if ! systemctl --user show-environment >/dev/null 2>&1; then
+    # Try setting DBUS_SESSION_BUS_ADDRESS to trigger socket activation
+    if [[ -n "${XDG_RUNTIME_DIR:-}" ]]; then
+      export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}"
+    fi
+    systemctl --user show-environment >/dev/null 2>&1 && _systemctl_user_ok=true
+  else
+    _systemctl_user_ok=true
+  fi
+fi
+
 fallback_pid_file="$storage_root/agent-mail.pid"
 fallback_log_file="$storage_root/agent-mail.log"
 
@@ -341,7 +357,7 @@ launch_agent_mail_fallback() {
   echo $! > "$fallback_pid_file"
 }
 
-if command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; then
+if [[ "$_systemctl_user_ok" = "true" ]]; then
   stop_agent_mail_fallback
   systemctl --user daemon-reload >/dev/null 2>&1 || true
   if ! systemctl --user enable --now agent-mail.service >/dev/null 2>&1; then
@@ -408,9 +424,7 @@ INSTALL_STACK_MCP_AGENT_MAIL
 runtime_dir="/run/user/$(id -u)"
 if [[ -d "$runtime_dir" ]]; then
   export XDG_RUNTIME_DIR="$runtime_dir"
-  if [[ -S "$runtime_dir/bus" ]]; then
-    export DBUS_SESSION_BUS_ADDRESS="unix:path=$runtime_dir/bus"
-  fi
+  export DBUS_SESSION_BUS_ADDRESS="unix:path=$runtime_dir/bus"
 fi
 if command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; then
   systemctl --user is-active --quiet agent-mail.service >/dev/null 2>&1 || exit 1
