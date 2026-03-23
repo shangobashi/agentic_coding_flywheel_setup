@@ -52,6 +52,12 @@ test.describe.serial("DCG Website Pages", () => {
         errors.push(`Page Error: ${error.message}`);
       });
 
+      // Unlock lesson 21 (DCG)
+      await page.goto("/");
+      await page.evaluate(() => {
+        localStorage.setItem("acfs-learning-hub-completed-lessons", JSON.stringify(Array.from({ length: 21 }, (_, i) => i)));
+      });
+
       await page.goto("/learn/dcg");
       await page.waitForLoadState("networkidle");
 
@@ -63,6 +69,12 @@ test.describe.serial("DCG Website Pages", () => {
     });
 
     test("DCG lesson has interactive elements", async ({ page }) => {
+      // Unlock lesson 21 (DCG)
+      await page.goto("/");
+      await page.evaluate(() => {
+        localStorage.setItem("acfs-learning-hub-completed-lessons", JSON.stringify(Array.from({ length: 21 }, (_, i) => i)));
+      });
+
       await page.goto("/learn/dcg");
       await page.waitForLoadState("networkidle");
 
@@ -134,7 +146,7 @@ test.describe.serial("DCG Website Pages", () => {
       await readMore.click();
 
       await expect(
-        dcgCard.getByText(/Destructive Command Guard/i)
+        dcgCard.getByText(/Destructive Command Guard/i).first()
       ).toBeVisible();
     });
 

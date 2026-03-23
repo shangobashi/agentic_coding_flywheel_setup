@@ -246,6 +246,7 @@ export function CommandList({ commands }: CommandListProps) {
           <button
             type="button"
             onClick={() => handleCopy(cmd.command, i)}
+            aria-label="Copy command"
             className="flex items-center gap-2 px-3 py-2 rounded-lg bg-black/40 border border-white/[0.08] font-mono text-sm text-emerald-400 transition-all duration-300 hover:bg-black/60 hover:border-emerald-500/30"
           >
             <span className="text-white/50">$</span>

@@ -52,6 +52,12 @@ test.describe.serial("RU Website Pages", () => {
         errors.push(`Page Error: ${error.message}`);
       });
 
+      // Set localStorage to unlock lesson 20 (RU)
+      await page.goto("/");
+      await page.evaluate(() => {
+        localStorage.setItem("acfs-learning-hub-completed-lessons", JSON.stringify(Array.from({ length: 20 }, (_, i) => i)));
+      });
+
       await page.goto("/learn/ru");
       await page.waitForLoadState("networkidle");
 
@@ -63,6 +69,12 @@ test.describe.serial("RU Website Pages", () => {
     });
 
     test("RU lesson has interactive elements", async ({ page }) => {
+      // Set localStorage to unlock lesson 20 (RU)
+      await page.goto("/");
+      await page.evaluate(() => {
+        localStorage.setItem("acfs-learning-hub-completed-lessons", JSON.stringify(Array.from({ length: 20 }, (_, i) => i)));
+      });
+
       await page.goto("/learn/ru");
       await page.waitForLoadState("networkidle");
 
@@ -78,6 +90,12 @@ test.describe.serial("RU Website Pages", () => {
     });
 
     test("RU lesson shows all major sections", async ({ page }) => {
+      // Set localStorage to unlock lesson 20 (RU)
+      await page.goto("/");
+      await page.evaluate(() => {
+        localStorage.setItem("acfs-learning-hub-completed-lessons", JSON.stringify(Array.from({ length: 20 }, (_, i) => i)));
+      });
+
       await page.goto("/learn/ru");
       await page.waitForLoadState("networkidle");
 

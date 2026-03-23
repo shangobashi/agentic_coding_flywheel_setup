@@ -33,7 +33,7 @@ test.describe.serial("SRPS Website Pages", () => {
       await page.waitForLoadState("networkidle");
 
       // Check for code blocks
-      const title = page.getByText(/srps/i).first();
+      const title = page.getByText(/srps|System Resource Protection/i).first();
       await expect(title).toBeVisible();
     });
 
@@ -61,6 +61,12 @@ test.describe.serial("SRPS Website Pages", () => {
         errors.push(`Page Error: ${error.message}`);
       });
 
+      // Unlock lesson 23 (SRPS)
+      await page.goto("/");
+      await page.evaluate(() => {
+        localStorage.setItem("acfs-learning-hub-completed-lessons", JSON.stringify(Array.from({ length: 23 }, (_, i) => i)));
+      });
+
       await page.goto("/learn/srps");
       await page.waitForLoadState("networkidle");
 
@@ -72,6 +78,12 @@ test.describe.serial("SRPS Website Pages", () => {
     });
 
     test("SRPS lesson has interactive elements", async ({ page }) => {
+      // Unlock lesson 23 (SRPS)
+      await page.goto("/");
+      await page.evaluate(() => {
+        localStorage.setItem("acfs-learning-hub-completed-lessons", JSON.stringify(Array.from({ length: 23 }, (_, i) => i)));
+      });
+
       await page.goto("/learn/srps");
       await page.waitForLoadState("networkidle");
 
@@ -87,6 +99,12 @@ test.describe.serial("SRPS Website Pages", () => {
     });
 
     test("SRPS lesson has installation section", async ({ page }) => {
+      // Unlock lesson 23 (SRPS)
+      await page.goto("/");
+      await page.evaluate(() => {
+        localStorage.setItem("acfs-learning-hub-completed-lessons", JSON.stringify(Array.from({ length: 23 }, (_, i) => i)));
+      });
+
       await page.goto("/learn/srps");
       await page.waitForLoadState("networkidle");
 

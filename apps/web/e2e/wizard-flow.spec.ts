@@ -266,7 +266,10 @@ test.describe("SSH Connect Page - Critical Bug Prevention", () => {
 
   test("should redirect to create-vps when IP is missing", async ({ page }) => {
     // Set up only OS, not IP
-    await setupWizardState(page, { os: "mac" });
+    await setupWizardState(page, { 
+      os: "mac",
+      completedSteps: [1, 2, 3, 4]
+    });
 
     // Navigate to SSH connect page
     await page.goto("/wizard/ssh-connect");

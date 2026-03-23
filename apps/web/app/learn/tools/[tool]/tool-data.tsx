@@ -244,7 +244,7 @@ const RAW_TOOLS: Record<ToolId, ToolCard> = {
   },
   dcg: {
     id: "dcg",
-    title: "DCG",
+    title: "Destructive Command Guard (DCG)",
     tagline: "Pre-execution safety net - blocks dangerous commands before damage",
     icon: <ShieldAlert className="h-8 w-8" aria-hidden="true" />,
     gradient: "from-red-500/20 via-rose-500/20 to-red-500/20",
