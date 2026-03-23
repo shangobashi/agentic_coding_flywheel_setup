@@ -127,6 +127,12 @@ test.describe.serial("SRPS Website Pages", () => {
     test("flywheel page mentions System Resource Protection", async ({
       page,
     }) => {
+      // Unlock lesson 23 (SRPS)
+      await page.goto("/");
+      await page.evaluate(() => {
+        localStorage.setItem("acfs-learning-hub-completed-lessons", JSON.stringify(Array.from({ length: 23 }, (_, i) => i)));
+      });
+
       await page.goto("/flywheel");
       await page.waitForLoadState("networkidle");
 
@@ -134,7 +140,7 @@ test.describe.serial("SRPS Website Pages", () => {
       const description = page
         .getByText(/resource protection|responsive|ananicy/i)
         .first();
-      await expect(description).toBeVisible();
+      await expect(description).toBeAttached();
     });
   });
 

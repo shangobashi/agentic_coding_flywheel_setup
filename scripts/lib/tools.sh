@@ -520,6 +520,8 @@ get_skipped_tools_json() {
         url="$(get_skip_url "$tool")"
 
         # Escape strings
+        local escaped_tool
+        escaped_tool="$(_json_escape "$tool")"
         reason="$(_json_escape "$reason")"
         url="$(_json_escape "$url")"
 
@@ -529,7 +531,7 @@ get_skipped_tools_json() {
             json+=","
         fi
 
-        json+="{\"name\":\"$tool\",\"reason\":\"$reason\""
+        json+="{\"name\":\"$escaped_tool\",\"reason\":\"$reason\""
         if [[ -n "$url" ]]; then
             json+=",\"url\":\"$url\""
         fi

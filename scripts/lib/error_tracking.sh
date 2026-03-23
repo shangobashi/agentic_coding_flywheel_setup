@@ -139,9 +139,10 @@ try_step() {
             # Verbose mode: show output in real-time AND capture it.
             # We avoid a subshell (...) to preserve global variable updates (SC2030/SC2031).
             # Using a temporary FIFO or redirection to a background process is more robust.
-            local fifo
-            fifo=$(mktemp -u "${TMPDIR:-/tmp}/acfs_fifo.XXXXXX" 2>/dev/null) || fifo=""
-            if [[ -n "$fifo" ]]; then
+            local fifo_dir fifo
+            fifo_dir=$(mktemp -d "${TMPDIR:-/tmp}/acfs_fifo.XXXXXX" 2>/dev/null) || fifo_dir=""
+            if [[ -n "$fifo_dir" ]]; then
+                fifo="$fifo_dir/fifo"
                 mkfifo "$fifo"
                 tee "$output_file" < "$fifo" &
                 local tee_pid=$!
@@ -155,7 +156,7 @@ try_step() {
                 # The command's exit already closed the write end of the FIFO,
                 # so tee will receive EOF and exit on its own.
                 wait "$tee_pid" 2>/dev/null || true
-                rm -f "$fifo"
+                rm -rf "$fifo_dir"
             else
                 # Fallback if mkfifo fails
                 set +e

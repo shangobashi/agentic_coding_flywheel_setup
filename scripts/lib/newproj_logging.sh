@@ -59,13 +59,17 @@ init_logging() {
     done
 
     # Create log directory
-    mkdir -p "$ACFS_LOG_DIR" 2>/dev/null || {
-        echo "Warning: Could not create log directory $ACFS_LOG_DIR" >&2
-        ACFS_LOG_DIR="/tmp"
-    }
-
-    # Generate session log filename with timestamp and PID for uniqueness
-    ACFS_SESSION_LOG="$ACFS_LOG_DIR/newproj_$(date +%Y%m%d_%H%M%S)_$$.log"
+    if ! mkdir -p "$ACFS_LOG_DIR" 2>/dev/null; then
+        echo "Warning: Could not create log directory $ACFS_LOG_DIR, falling back to /tmp" >&2
+        ACFS_SESSION_LOG=$(mktemp "${TMPDIR:-/tmp}/newproj_XXXXXX.log" 2>/dev/null) || {
+            echo "Error: Could not create temp log file" >&2
+            # Still set it to /dev/null so logging functions don't fail, just discard
+            ACFS_SESSION_LOG="/dev/null"
+        }
+    else
+        # Generate session log filename with timestamp and PID for uniqueness
+        ACFS_SESSION_LOG="$ACFS_LOG_DIR/newproj_$(date +%Y%m%d_%H%M%S)_$$.log"
+    fi
     export ACFS_SESSION_LOG
 
     # Clean up old logs (non-blocking)

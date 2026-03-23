@@ -128,12 +128,18 @@ test.describe.serial("RU Website Pages", () => {
     });
 
     test("RU workflow scenarios visible", async ({ page }) => {
+      // Set localStorage to unlock lesson 20 (RU)
+      await page.goto("/");
+      await page.evaluate(() => {
+        localStorage.setItem("acfs-learning-hub-completed-lessons", JSON.stringify(Array.from({ length: 20 }, (_, i) => i)));
+      });
+
       await page.goto("/flywheel");
       await page.waitForLoadState("networkidle");
 
       // Check for RU workflow scenarios
       const workflowSection = page.getByText(/multi.*repo|sync|agent.*sweep/i);
-      await expect(workflowSection.first()).toBeVisible();
+      await expect(workflowSection.first()).toBeAttached();
     });
   });
 

@@ -45,9 +45,12 @@ async function setupWizardState(
       localStorage.clear();
       if (os) localStorage.setItem("agent-flywheel-user-os", os);
       if (ip) localStorage.setItem("agent-flywheel-vps-ip", ip);
-      if (completedSteps) {
-        localStorage.setItem(completedStepsKey, JSON.stringify(completedSteps));
-      }
+      
+      // If completedSteps is not provided, default to completing all steps up to 13
+      // so the layout doesn't automatically redirect us to step 1 during tests.
+      const steps = completedSteps || Array.from({ length: 13 }, (_, i) => i + 1);
+      localStorage.setItem(completedStepsKey, JSON.stringify(steps));
+      
       if (commandCompletions) {
         for (const key of commandCompletions) {
           localStorage.setItem(`${commandCompletionPrefix}${key}`, "true");
@@ -230,7 +233,11 @@ test.describe("SSH Connect Page - Critical Bug Prevention", () => {
   test("should NOT get stuck on loading spinner when prerequisites are met", async ({ page }) => {
     // This is the critical test for the bug that was fixed
     // Set up localStorage with required data
-    await setupWizardState(page, { os: "mac", ip: "192.168.1.100" });
+    await setupWizardState(page, { 
+      os: "mac", 
+      ip: "192.168.1.100",
+      completedSteps: [1, 2, 3, 4, 5]
+    });
 
     // Navigate to SSH connect page
     await page.goto("/wizard/ssh-connect");
