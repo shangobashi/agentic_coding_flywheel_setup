@@ -43,6 +43,7 @@ ACFS_LOG_RETENTION_DAYS="${ACFS_LOG_RETENTION_DAYS:-7}"
 # Usage: init_logging [--verbose]
 init_logging() {
     local verbose=false
+    local fallback_log_dir=""
 
     # Parse arguments
     while [[ $# -gt 0 ]]; do
@@ -60,7 +61,10 @@ init_logging() {
 
     # Create log directory
     if ! mkdir -p "$ACFS_LOG_DIR" 2>/dev/null; then
-        echo "Warning: Could not create log directory $ACFS_LOG_DIR, falling back to /tmp" >&2
+        fallback_log_dir="${TMPDIR:-/tmp}"
+        echo "Warning: Could not create log directory $ACFS_LOG_DIR, falling back to $fallback_log_dir" >&2
+        ACFS_LOG_DIR="$fallback_log_dir"
+        export ACFS_LOG_DIR
         ACFS_SESSION_LOG=$(mktemp "${TMPDIR:-/tmp}/newproj_XXXXXX.log" 2>/dev/null) || {
             echo "Error: Could not create temp log file" >&2
             # Still set it to /dev/null so logging functions don't fail, just discard

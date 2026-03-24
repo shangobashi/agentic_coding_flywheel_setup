@@ -20,6 +20,7 @@ FAIL_COUNT=0
 SKIP_COUNT=0
 VERBOSE=false
 JSON_STDOUT=false
+TEST_TIMEOUT_SECONDS="${TEST_TIMEOUT_SECONDS:-10}"
 
 declare -a TEST_RESULTS=()
 
@@ -90,6 +91,26 @@ file_details() {
     else
         ls -l "$path" 2>/dev/null
     fi
+}
+
+create_beads_probe_workspace() {
+    local probe_dir
+    probe_dir=$(mktemp -d "${TMPDIR:-/tmp}/acfs_beads_e2e.XXXXXX")
+    if [[ -z "$probe_dir" || ! -d "$probe_dir" ]]; then
+        return 1
+    fi
+
+    if ! (cd "$probe_dir" && timeout "$TEST_TIMEOUT_SECONDS" br init >/dev/null 2>>"$LOG_FILE"); then
+        return 1
+    fi
+
+    printf '%s\n' "$probe_dir"
+}
+
+run_beads_probe_command() {
+    local probe_dir="$1"
+    shift
+    (cd "$probe_dir" && timeout "$TEST_TIMEOUT_SECONDS" "$@")
 }
 
 # ============================================================
@@ -192,17 +213,16 @@ test_flywheel_tools() {
         # Verify core workflow in an isolated workspace so repo-local DB corruption
         # does not create false failures in installer verification.
         local br_probe_dir
-        br_probe_dir=$(mktemp -d "${TMPDIR:-/tmp}/acfs_br_probe.XXXXXX")
+        br_probe_dir=$(create_beads_probe_workspace)
         if [[ -z "$br_probe_dir" || ! -d "$br_probe_dir" ]]; then
             fail "br_list" "mktemp failed while creating isolated br probe workspace"
             return 1
         fi
         local br_list_output=""
         if (
-            cd "$br_probe_dir" &&
-            br init >/dev/null 2>&1 &&
-            br_list_output=$(br list --json 2>/dev/null) &&
-            [[ "$br_list_output" =~ ^[[:space:]]*\[ ]]
+            run_beads_probe_command "$br_probe_dir" br create "E2E probe issue" --type task --priority 4 >/dev/null 2>>"$LOG_FILE" &&
+            br_list_output=$(run_beads_probe_command "$br_probe_dir" br list --json 2>>"$LOG_FILE") &&
+            jq -e 'type == "array"' <<<"$br_list_output" >/dev/null 2>&1
         ); then
             pass "br_list" "br init + br list --json succeeds in isolated workspace ($br_probe_dir)"
         else
@@ -634,9 +654,14 @@ test_integration() {
     # Test 4: bv (beads_viewer) works
     log "INFO" "bv" "Testing beads_viewer (bv)..."
     if command -v bv >/dev/null 2>&1; then
-        local bv_output=""
-        if bv_output=$(bv --robot-triage 2>/dev/null) && [[ "$bv_output" =~ ^[[:space:]]*\{ ]]; then
-            pass "bv_triage" "bv --robot-triage returns valid JSON"
+        local bv_probe_dir
+        bv_probe_dir=$(create_beads_probe_workspace)
+        if [[ -z "$bv_probe_dir" || ! -d "$bv_probe_dir" ]]; then
+            fail "bv_triage" "mktemp failed while creating isolated bv probe workspace"
+        elif run_beads_probe_command "$bv_probe_dir" br create "BV E2E probe issue" --type task --priority 4 >/dev/null 2>>"$LOG_FILE" && \
+            bv_output=$(run_beads_probe_command "$bv_probe_dir" bv --robot-triage 2>>"$LOG_FILE") && \
+            jq -e 'type == "object"' <<<"$bv_output" >/dev/null 2>&1; then
+            pass "bv_triage" "bv --robot-triage returns valid JSON in isolated workspace"
         else
             fail "bv_triage" "bv --robot-triage failed"
         fi

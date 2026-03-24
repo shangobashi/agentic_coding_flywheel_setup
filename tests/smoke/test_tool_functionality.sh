@@ -9,6 +9,7 @@ LOG_FILE="/tmp/smoke_tests_$(date +%Y%m%d_%H%M%S).log"
 PASS_COUNT=0
 FAIL_COUNT=0
 SKIP_COUNT=0
+TEST_TIMEOUT_SECONDS="${TEST_TIMEOUT_SECONDS:-10}"
 
 log() { echo "[$(date +%H:%M:%S)] $*" | tee -a "$LOG_FILE"; }
 pass() {
@@ -24,6 +25,26 @@ skip() {
     ((SKIP_COUNT++))
 }
 
+create_beads_probe_workspace() {
+    local probe_dir
+    probe_dir=$(mktemp -d "${TMPDIR:-/tmp}/acfs_beads_smoke.XXXXXX")
+    if [[ -z "$probe_dir" || ! -d "$probe_dir" ]]; then
+        return 1
+    fi
+
+    if ! (cd "$probe_dir" && timeout "$TEST_TIMEOUT_SECONDS" br init >/dev/null 2>&1); then
+        return 1
+    fi
+
+    printf '%s\n' "$probe_dir"
+}
+
+run_beads_probe_command() {
+    local probe_dir="$1"
+    shift
+    (cd "$probe_dir" && timeout "$TEST_TIMEOUT_SECONDS" "$@")
+}
+
 # ===========================================================================
 # Core Tool Smoke Tests
 # ===========================================================================
@@ -36,31 +57,56 @@ test_br_functionality() {
         return
     fi
 
-    # Create a test issue (filter out INFO log lines)
-    local test_id
-    test_id=$(br create "Smoke test issue - DELETE ME" --type task --priority 4 --silent 2>&1 | grep -vE "INFO|WARN|ERROR" | head -1)
-    local create_exit=$?
-
-    if [[ $create_exit -ne 0 ]] || [[ -z "$test_id" ]]; then
-        fail "br create failed to create test issue"
+    local probe_dir
+    probe_dir=$(create_beads_probe_workspace)
+    if [[ -z "$probe_dir" ]]; then
+        fail "br probe workspace setup failed"
         return
     fi
 
-    # Clean up test_id (remove any trailing whitespace/newlines)
-    test_id=$(echo "$test_id" | tr -d '\n' | tr -d ' ')
+    local create_output create_exit test_id
+    create_output=$(run_beads_probe_command "$probe_dir" br create "Smoke test issue" --type task --priority 4 --json 2>&1)
+    create_exit=$?
 
-    # Verify it exists in list
-    if br list 2>&1 | grep -q "$test_id"; then
-        pass "br created and listed issue: $test_id"
-    else
-        fail "br issue $test_id not found in list"
+    if [[ $create_exit -ne 0 ]]; then
+        if [[ $create_exit -eq 124 ]]; then
+            fail "br create timed out after ${TEST_TIMEOUT_SECONDS}s"
+        else
+            fail "br create failed in isolated workspace: $create_output"
+        fi
+        return
     fi
 
-    # Close the test issue
-    if br update "$test_id" --status closed 2>&1 | grep -qE "Updated|closed"; then
-        pass "br closed test issue: $test_id"
+    test_id=$(jq -r '.id // empty' <<<"$create_output" 2>/dev/null)
+    if [[ -z "$test_id" ]]; then
+        fail "br create returned JSON without an issue id"
+        return
+    fi
+
+    local list_output list_exit
+    list_output=$(run_beads_probe_command "$probe_dir" br list --json 2>&1)
+    list_exit=$?
+    if [[ $list_exit -eq 0 ]] && jq -e --arg id "$test_id" 'type == "array" and any(.[]?; .id == $id)' <<<"$list_output" >/dev/null 2>&1; then
+        pass "br created and listed issue in isolated workspace: $test_id"
     else
-        fail "br failed to close test issue: $test_id"
+        if [[ $list_exit -eq 124 ]]; then
+            fail "br list timed out after ${TEST_TIMEOUT_SECONDS}s"
+        else
+            fail "br issue $test_id not found in isolated workspace list"
+        fi
+    fi
+
+    local close_output close_exit
+    close_output=$(run_beads_probe_command "$probe_dir" br close "$test_id" --reason "Smoke test cleanup" 2>&1)
+    close_exit=$?
+    if [[ $close_exit -eq 0 ]]; then
+        pass "br closed test issue in isolated workspace: $test_id"
+    else
+        if [[ $close_exit -eq 124 ]]; then
+            fail "br close timed out after ${TEST_TIMEOUT_SECONDS}s"
+        else
+            fail "br failed to close test issue $test_id: $close_output"
+        fi
     fi
 }
 
@@ -174,18 +220,35 @@ test_bv_functionality() {
         skip "bv not installed, skipping functionality test"
         return
     fi
+    if ! command -v br >/dev/null 2>&1; then
+        skip "br not installed, skipping hermetic bv smoke test"
+        return
+    fi
 
-    # Run robot-next to get a recommendation
-    local output
-    output=$(bv --robot-next 2>&1)
-    local exit_code=$?
+    local probe_dir
+    probe_dir=$(create_beads_probe_workspace)
+    if [[ -z "$probe_dir" ]]; then
+        fail "bv probe workspace setup failed"
+        return
+    fi
 
-    if [[ $exit_code -eq 0 ]] && [[ "$output" =~ "id" ]]; then
-        pass "bv --robot-next returned valid recommendation"
-    elif [[ "$output" =~ (no.*issues|empty|nothing) ]]; then
-        pass "bv --robot-next reports no work (acceptable)"
+    if ! run_beads_probe_command "$probe_dir" br create "BV smoke probe" --type task --priority 4 >/dev/null 2>&1; then
+        fail "bv probe issue creation failed"
+        return
+    fi
+
+    local output exit_code
+    output=$(run_beads_probe_command "$probe_dir" bv --robot-next 2>&1)
+    exit_code=$?
+
+    if [[ $exit_code -eq 0 ]] && jq -e 'type == "object" and (.id? // .recommendation?.id? // .issue?.id?) != null' <<<"$output" >/dev/null 2>&1; then
+        pass "bv --robot-next returned valid JSON recommendation in isolated workspace"
     else
-        fail "bv --robot-next failed: $output"
+        if [[ $exit_code -eq 124 ]]; then
+            fail "bv --robot-next timed out after ${TEST_TIMEOUT_SECONDS}s"
+        else
+            fail "bv --robot-next failed in isolated workspace: $output"
+        fi
     fi
 }
 

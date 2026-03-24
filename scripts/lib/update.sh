@@ -827,7 +827,12 @@ refresh_checksums() {
         return 1
     fi
 
-    if curl -fsSL --connect-timeout 5 --max-time 30 -o "$tmp_checksums" "$CHECKSUMS_URL" 2>/dev/null; then
+    # Use --proto/--proto-redir to enforce HTTPS (matches install.sh / security.sh policy)
+    local -a _refresh_curl_args=(--connect-timeout 5 --max-time 30 -fsSL)
+    if command -v curl &>/dev/null && curl --help all 2>/dev/null | grep -q -- '--proto'; then
+        _refresh_curl_args=(--proto '=https' --proto-redir '=https' --connect-timeout 5 --max-time 30 -fsSL)
+    fi
+    if curl "${_refresh_curl_args[@]}" -o "$tmp_checksums" "$CHECKSUMS_URL" 2>/dev/null; then
         # Validate it looks like a checksums file
         if grep -q "^installers:" "$tmp_checksums" 2>/dev/null; then
             if mv "$tmp_checksums" "$CHECKSUMS_LOCAL" 2>/dev/null; then

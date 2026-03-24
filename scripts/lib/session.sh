@@ -370,7 +370,7 @@ def sanitize_value:
         # Since jq gsub doesn't support backreferences in the replacement string,
         # we use a capture-and-replace approach or just redact the whole match.
         # Redacting the whole match is safer for security.
-        gsub("(?i)(password|secret|api_key|apikey|auth_token|access_token)[\"\\s:=]+[\"'\''"]?[^\\s\"'\''"]{8,}[\"'\''"]?"; "[SECRET_REDACTED]")
+        gsub("(?i)(password|secret|api_key|apikey|auth_token|access_token)[\"\\s:=]+[\"']?[^\\s\"'\\}\\]\\),;\\[]{8,}[\"']?"; "[SECRET_REDACTED]")
 JQ_BASE
 
     local jq_filter_optional=""

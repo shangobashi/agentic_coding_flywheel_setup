@@ -371,7 +371,9 @@ function escapeBash(str: string): string {
     .replace(/\\/g, '\\\\')  // Backslash first (order matters)
     .replace(/"/g, '\\"')    // Double quotes
     .replace(/\$/g, '\\$')   // Dollar sign (prevents variable expansion)
-    .replace(/`/g, '\\`');   // Backticks (prevents command substitution)
+    .replace(/`/g, '\\`')    // Backticks (prevents command substitution)
+    .replace(/\n/g, ' ')     // Newlines break double-quoted strings in generated scripts
+    .replace(/\r/g, '');     // Strip carriage returns
 }
 
 /**

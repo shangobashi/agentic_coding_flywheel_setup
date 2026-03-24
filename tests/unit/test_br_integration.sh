@@ -8,6 +8,8 @@ set -uo pipefail
 LOG_FILE="/tmp/br_integration_tests_$(date +%Y%m%d_%H%M%S).log"
 PASS_COUNT=0
 FAIL_COUNT=0
+TEST_TIMEOUT_SECONDS="${TEST_TIMEOUT_SECONDS:-10}"
+PROBE_DIR=""
 
 log() { echo "[$(date +%H:%M:%S)] $*" | tee -a "$LOG_FILE"; }
 pass() {
@@ -17,6 +19,46 @@ pass() {
 fail() {
     log "FAIL: $*"
     ((FAIL_COUNT++))
+}
+
+run_probe_command() {
+    (cd "$PROBE_DIR" && timeout "$TEST_TIMEOUT_SECONDS" "$@")
+}
+
+ensure_probe_workspace() {
+    if [[ -n "$PROBE_DIR" && -d "$PROBE_DIR" ]]; then
+        return 0
+    fi
+
+    PROBE_DIR=$(mktemp -d "${TMPDIR:-/tmp}/acfs_br_integration.XXXXXX")
+    if [[ -z "$PROBE_DIR" || ! -d "$PROBE_DIR" ]]; then
+        log "Probe workspace setup failed: mktemp did not create a directory"
+        return 1
+    fi
+
+    if ! run_probe_command br init >/dev/null 2>>"$LOG_FILE"; then
+        log "Probe workspace setup failed: br init timed out or exited non-zero"
+        return 1
+    fi
+
+    if ! run_probe_command br create "Integration test probe issue" --type task --priority 4 >/dev/null 2>>"$LOG_FILE"; then
+        log "Probe workspace setup failed: br create timed out or exited non-zero"
+        return 1
+    fi
+
+    return 0
+}
+
+report_probe_failure() {
+    local label="$1"
+    local rc="$2"
+    local output="$3"
+
+    if [[ "$rc" -eq 124 ]]; then
+        fail "$label timed out after ${TEST_TIMEOUT_SECONDS}s"
+    else
+        fail "$label failed in isolated workspace ${PROBE_DIR}: ${output:-<no stdout>}"
+    fi
 }
 
 # Test 1: br binary exists
@@ -58,25 +100,36 @@ test_br_primary() {
 # Test 4: br list works
 test_br_list() {
     log "Test 4: br list..."
-    if br list --json 2>/dev/null | head -1 | grep -q '^\['; then
-        pass "br list --json returns valid JSON array"
+    local output rc
+    if ! ensure_probe_workspace; then
+        fail "br list probe workspace setup failed"
+        return
+    fi
+
+    output=$(run_probe_command br list --json 2>>"$LOG_FILE")
+    rc=$?
+    if [[ "$rc" -eq 0 ]] && jq -e 'type == "array"' <<<"$output" >/dev/null 2>&1; then
+        pass "br list --json returns valid JSON array in isolated workspace"
     else
-        # Empty list is also valid
-        if br list --json 2>/dev/null | head -1 | grep -q '^\[\]$'; then
-            pass "br list --json returns empty array (no issues yet)"
-        else
-            fail "br list --json failed or returned invalid JSON"
-        fi
+        report_probe_failure "br list --json" "$rc" "$output"
     fi
 }
 
 # Test 5: br ready works
 test_br_ready() {
     log "Test 5: br ready..."
-    if br ready --json 2>/dev/null | head -1 | grep -qE '^\[|^$'; then
-        pass "br ready --json works"
+    local output rc
+    if ! ensure_probe_workspace; then
+        fail "br ready probe workspace setup failed"
+        return
+    fi
+
+    output=$(run_probe_command br ready --json 2>>"$LOG_FILE")
+    rc=$?
+    if [[ "$rc" -eq 0 ]] && jq -e 'type == "array"' <<<"$output" >/dev/null 2>&1; then
+        pass "br ready --json returns valid JSON array in isolated workspace"
     else
-        fail "br ready --json failed"
+        report_probe_failure "br ready --json" "$rc" "$output"
     fi
 }
 
@@ -93,10 +146,18 @@ test_bv_binary() {
 # Test 7: bv --robot-triage works
 test_bv_robot_triage() {
     log "Test 7: bv --robot-triage..."
-    if bv --robot-triage 2>/dev/null | head -1 | grep -q '^{'; then
-        pass "bv --robot-triage returns valid JSON"
+    local output rc
+    if ! ensure_probe_workspace; then
+        fail "bv probe workspace setup failed"
+        return
+    fi
+
+    output=$(run_probe_command bv --robot-triage 2>>"$LOG_FILE")
+    rc=$?
+    if [[ "$rc" -eq 0 ]] && jq -e 'type == "object"' <<<"$output" >/dev/null 2>&1; then
+        pass "bv --robot-triage returns valid JSON in isolated workspace"
     else
-        fail "bv --robot-triage failed or returned invalid JSON"
+        report_probe_failure "bv --robot-triage" "$rc" "$output"
     fi
 }
 
