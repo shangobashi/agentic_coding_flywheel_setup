@@ -6,15 +6,17 @@
 # silently downgrades from latest to stable channel).
 # ============================================================
 # Bead: bd-gsjqf.4
-# 8 tests per specification:
+# 10 tests per specification:
 #   1. Static Analysis — No bare "claude update" in function body
 #   2. Static Analysis — update_run_verified_installer is called
 #   3. Dry-run behavior
 #   4. Function instrumentation (mock)
 #   5. Security fallback
-#   6. uca alias definition
-#   7. Completeness sweep
-#   8. Channel version (live, optional)
+#   6. Repo checkout prefers repo checksums over installed cache
+#   7. Checksum recovery succeeds after refreshed remote metadata
+#   8. uca alias definition
+#   9. Completeness sweep
+#   10. Channel version (live, optional)
 # ============================================================
 
 set -euo pipefail
@@ -93,7 +95,10 @@ section "Test 3: Dry-run behavior"
 # DRY_RUN=true and verify it returns 0 without executing anything.
 dry_run_output=$(
     bash -c '
-        # Provide required globals
+        source "'"$UPDATE_SH"'"
+
+        # Provide required globals after sourcing update.sh so test settings
+        # override the script defaults instead of getting reset by them.
         DRY_RUN=true
         VERBOSE=false
         QUIET=true
@@ -108,8 +113,6 @@ dry_run_output=$(
         RED="" GREEN="" YELLOW="" CYAN="" BOLD="" DIM="" NC=""
         declare -gA VERSION_BEFORE=()
         declare -gA VERSION_AFTER=()
-
-        source "'"$UPDATE_SH"'"
 
         run_cmd_claude_update
         echo "DRY_RUN_EXIT=$?"
@@ -134,13 +137,15 @@ MOCK_SIGNAL="/tmp/test_update_channel_mock_$$"
 rm -f "$MOCK_SIGNAL"
 mock_output=$(
     bash -c '
+        source "'"$UPDATE_SH"'"
+
         DRY_RUN=false
         VERBOSE=true
-        QUIET=true
+        QUIET=false
         FORCE_MODE=false
         YES_MODE=false
         ABORT_ON_FAILURE=false
-        UPDATE_LOG_FILE="/dev/null"
+        UPDATE_LOG_FILE=""
         SUCCESS_COUNT=0
         SKIP_COUNT=0
         FAIL_COUNT=0
@@ -148,8 +153,6 @@ mock_output=$(
         RED="" GREEN="" YELLOW="" CYAN="" BOLD="" DIM="" NC=""
         declare -gA VERSION_BEFORE=()
         declare -gA VERSION_AFTER=()
-
-        source "'"$UPDATE_SH"'"
 
         # Override with mock — write args to a temp file signal
         update_run_verified_installer() {
@@ -180,6 +183,8 @@ section "Test 5: Security fallback"
 # verify update_run_verified_installer returns non-zero with a warning.
 security_output=$(
     bash -c '
+        source "'"$UPDATE_SH"'"
+
         DRY_RUN=false
         VERBOSE=false
         QUIET=true
@@ -194,8 +199,6 @@ security_output=$(
         RED="" GREEN="" YELLOW="" CYAN="" BOLD="" DIM="" NC=""
         declare -gA VERSION_BEFORE=()
         declare -gA VERSION_AFTER=()
-
-        source "'"$UPDATE_SH"'"
 
         # Override security check to always fail
         update_require_security() { return 1; }
@@ -223,6 +226,8 @@ for ms_arm64_arch in aarch64 arm64; do
     rm -f "$MS_ARM64_SIGNAL"
     ms_arm64_output=$(
         bash -c '
+            source "'"$UPDATE_SH"'"
+
             DRY_RUN=false
             VERBOSE=false
             QUIET=true
@@ -237,8 +242,6 @@ for ms_arm64_arch in aarch64 arm64; do
             RED="" GREEN="" YELLOW="" CYAN="" BOLD="" DIM="" NC=""
             declare -gA VERSION_BEFORE=()
             declare -gA VERSION_AFTER=()
-
-            source "'"$UPDATE_SH"'"
 
             uname() {
                 case "${1:-}" in
@@ -271,7 +274,128 @@ for ms_arm64_arch in aarch64 arm64; do
 done
 
 # ============================================================
-section "Test 6: uca alias definition"
+section "Test 6: Repo checkout prefers repo checksums over installed cache"
+# ============================================================
+current_mcp_agent_mail_sha=$(awk '
+    $1 == "mcp_agent_mail:" { in_block=1; next }
+    in_block && $1 == "sha256:" { gsub(/"/, "", $2); print $2; exit }
+' "$REPO_ROOT/checksums.yaml")
+
+repo_checksum_preference_output=$(
+    bash -c '
+        set -euo pipefail
+        export HOME
+        HOME="$(mktemp -d)"
+        mkdir -p "$HOME/.acfs"
+        cp "'"$REPO_ROOT"'/checksums.yaml" "$HOME/.acfs/checksums.yaml"
+        python3 - <<'"'"'PY'"'"' "$HOME/.acfs/checksums.yaml"
+import sys
+path = sys.argv[1]
+with open(path, "r", encoding="utf-8") as fh:
+    content = fh.read()
+content = content.replace(
+    "'"$current_mcp_agent_mail_sha"'",
+    "1111111111111111111111111111111111111111111111111111111111111111",
+    1,
+)
+with open(path, "w", encoding="utf-8") as fh:
+    fh.write(content)
+PY
+
+        source "'"$UPDATE_SH"'"
+        QUIET=true
+        CHECKSUMS_URL="https://127.0.0.1:9/nowhere"
+        update_require_security >/dev/null
+        printf "CHECKSUM=%s\n" "$(get_checksum mcp_agent_mail)"
+    ' 2>&1
+) || true
+
+if echo "$repo_checksum_preference_output" | grep -q "CHECKSUM=$current_mcp_agent_mail_sha"; then
+    pass "Repo-local update.sh ignores stale ~/.acfs/checksums.yaml and loads repo checksums"
+else
+    fail "Repo-local update.sh still preferred stale installed checksums. Output: $repo_checksum_preference_output"
+fi
+
+# ============================================================
+section "Test 7: Verified installer recovers from stale checksum metadata"
+# ============================================================
+checksum_recovery_output=$(
+    bash -c '
+        set -euo pipefail
+
+        tmpdir="$(mktemp -d)"
+        fake_installer_payload=$'"'"'#!/usr/bin/env bash\necho RECOVERED_INSTALLER\n'"'"'
+        fake_installer_sha="$(printf "%s" "$fake_installer_payload" | sha256sum | awk "{print \$1}")"
+
+        cat > "$tmpdir/checksums.yaml" <<EOF
+installers:
+  mcp_agent_mail:
+    url: "https://example.invalid/stale-install.sh"
+    sha256: "1111111111111111111111111111111111111111111111111111111111111111"
+EOF
+
+        source "'"$UPDATE_SH"'"
+
+        DRY_RUN=false
+        VERBOSE=false
+        QUIET=true
+        FORCE_MODE=false
+        YES_MODE=false
+        ABORT_ON_FAILURE=false
+        UPDATE_LOG_FILE="/dev/null"
+        SUCCESS_COUNT=0
+        SKIP_COUNT=0
+        FAIL_COUNT=0
+        NO_COLOR=1
+        RED="" GREEN="" YELLOW="" CYAN="" BOLD="" DIM="" NC=""
+        declare -gA VERSION_BEFORE=()
+        declare -gA VERSION_AFTER=()
+
+        export CHECKSUMS_FILE="$tmpdir/checksums.yaml"
+        source "'"$REPO_ROOT"'/scripts/lib/security.sh"
+        load_checksums "$tmpdir/checksums.yaml"
+
+        update_require_security() { return 0; }
+        update_run_in_target_context() {
+            local _env_assignment="$1"
+            shift
+            "$@"
+        }
+
+        acfs_download_to_file() {
+            local url="$1"
+            local output_path="$2"
+            case "$url" in
+                https://example.invalid/stale-install.sh|https://example.invalid/fresh-install.sh)
+                    printf "%s" "$fake_installer_payload" > "$output_path"
+                    ;;
+                *)
+                    return 1
+                    ;;
+            esac
+        }
+
+        acfs_fetch_fresh_checksums_to_file() {
+            cat > "$1" <<EOF
+installers:
+  mcp_agent_mail:
+    url: "https://example.invalid/fresh-install.sh"
+    sha256: "$fake_installer_sha"
+EOF
+        }
+
+        update_run_verified_installer mcp_agent_mail
+    ' 2>&1
+) || true
+
+if echo "$checksum_recovery_output" | grep -q 'RECOVERED_INSTALLER'; then
+    pass "update_run_verified_installer recovers after refreshed checksum metadata"
+else
+    fail "Verified installer did not recover from stale checksum metadata. Output: $checksum_recovery_output"
+fi
+
+# ============================================================
+section "Test 8: uca alias definition"
 # ============================================================
 if [[ -f "$ZSHRC" ]]; then
     uca_line=$(grep "alias uca=" "$ZSHRC" || true)
@@ -306,7 +430,7 @@ else
 fi
 
 # ============================================================
-section "Test 7: Completeness sweep — no bare 'claude update' in repo"
+section "Test 9: Completeness sweep — no bare 'claude update' in repo"
 # ============================================================
 # Grep across the whole repo for "claude update", excluding:
 # - comments (lines starting with #)
@@ -340,7 +464,7 @@ else
 fi
 
 # ============================================================
-section "Test 8: Channel version alignment (live, optional)"
+section "Test 10: Channel version alignment (live, optional)"
 # ============================================================
 if command -v npm &>/dev/null && command -v claude &>/dev/null; then
     dist_tags=$(npm view @anthropic-ai/claude-code dist-tags 2>/dev/null || true)

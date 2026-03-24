@@ -43,6 +43,10 @@ YELLOW="${ACFS_YELLOW-\033[0;33m}"
 # Configuration
 # ============================================================
 
+ACFS_REPO_OWNER="${ACFS_REPO_OWNER:-Dicklesworthstone}"
+ACFS_REPO_NAME="${ACFS_REPO_NAME:-agentic_coding_flywheel_setup}"
+ACFS_CHECKSUMS_REF="${ACFS_CHECKSUMS_REF:-main}"
+
 # Check if running in interactive mode
 # Returns 0 if interactive, 1 if non-interactive
 _acfs_is_interactive() {
@@ -335,6 +339,7 @@ verify_checksum() {
     local url="$1"
     local expected_sha256="$2"
     local name="${3:-installer}"
+    local fresh_tmp_file=""
 
     if ! enforce_https "$url"; then
         return 1
@@ -347,7 +352,7 @@ verify_checksum() {
         return 1
     }
     # Ensure cleanup on return
-    trap 'rm -f "${tmp_file:-}" 2>/dev/null' RETURN
+    trap 'rm -f "${tmp_file:-}" "${fresh_tmp_file:-}" 2>/dev/null' RETURN
 
     if ! acfs_download_to_file "$url" "$tmp_file" "$name"; then
         log_error "Security Error: Failed to fetch $name"
@@ -361,6 +366,37 @@ verify_checksum() {
     }
 
     if [[ "$actual_sha256" != "$expected_sha256" ]]; then
+        local refreshed_expected_sha256=""
+        local refreshed_url="$url"
+        local refreshed_actual_sha256=""
+
+        if acfs_refresh_loaded_checksums_from_remote; then
+            refreshed_expected_sha256="$(get_checksum "$name")"
+            refreshed_url="${KNOWN_INSTALLERS[$name]:-$url}"
+
+            if [[ -n "$refreshed_expected_sha256" ]]; then
+                if [[ "$refreshed_url" == "$url" && "$actual_sha256" == "$refreshed_expected_sha256" ]]; then
+                    log_success "Verified with refreshed checksums: $name"
+                    cat "$tmp_file"
+                    return $?
+                fi
+
+                fresh_tmp_file="$(mktemp "${TMPDIR:-/tmp}/acfs-verify.XXXXXX" 2>/dev/null)" || fresh_tmp_file=""
+                if [[ -n "$fresh_tmp_file" ]] && acfs_download_to_file "$refreshed_url" "$fresh_tmp_file" "$name"; then
+                    refreshed_actual_sha256="$(calculate_file_sha256 "$fresh_tmp_file")" || refreshed_actual_sha256=""
+                    if [[ -n "$refreshed_actual_sha256" && "$refreshed_actual_sha256" == "$refreshed_expected_sha256" ]]; then
+                        log_success "Verified with refreshed checksums: $name"
+                        cat "$fresh_tmp_file"
+                        return $?
+                    fi
+                fi
+
+                expected_sha256="$refreshed_expected_sha256"
+                url="$refreshed_url"
+                [[ -n "$refreshed_actual_sha256" ]] && actual_sha256="$refreshed_actual_sha256"
+            fi
+        fi
+
         log_error "Security Error: Checksum mismatch for $name"
         printf "  Expected: %s\n" "$expected_sha256" >&2
         printf "  Actual:   %s\n" "$actual_sha256" >&2
@@ -703,6 +739,75 @@ get_checksum() {
 
 # Associative array to store loaded checksums
 declare -gA LOADED_CHECKSUMS
+declare -g ACFS_CHECKSUMS_REMOTE_REFRESHED=false
+
+acfs_checksums_file_looks_valid() {
+    local file="$1"
+    [[ -r "$file" ]] || return 1
+    grep -Eq '^[[:space:]]*installers:[[:space:]]*$' "$file"
+}
+
+acfs_fetch_fresh_checksums_to_file() {
+    local dest="$1"
+    local api_url="https://api.github.com/repos/${ACFS_REPO_OWNER}/${ACFS_REPO_NAME}/contents/checksums.yaml?ref=${ACFS_CHECKSUMS_REF}"
+    local raw_url="https://raw.githubusercontent.com/${ACFS_REPO_OWNER}/${ACFS_REPO_NAME}/${ACFS_CHECKSUMS_REF}/checksums.yaml?cb=$(date +%s)"
+
+    : > "$dest" 2>/dev/null || {
+        log_detail "Unable to initialize temporary checksums file: $dest"
+        return 1
+    }
+
+    if acfs_curl \
+        -H "Accept: application/vnd.github.raw" \
+        -H "X-GitHub-Api-Version: 2022-11-28" \
+        "$api_url" \
+        -o "$dest" 2>/dev/null; then
+        if acfs_checksums_file_looks_valid "$dest"; then
+            return 0
+        fi
+        log_detail "GitHub API returned unexpected checksums.yaml content"
+    else
+        log_detail "GitHub API fetch for checksums.yaml failed"
+    fi
+
+    if acfs_download_to_file "$raw_url" "$dest" "checksums.yaml"; then
+        if acfs_checksums_file_looks_valid "$dest"; then
+            return 0
+        fi
+        log_detail "Raw checksums.yaml fetch returned unexpected content"
+    else
+        log_detail "Raw checksums.yaml fetch failed"
+    fi
+
+    return 1
+}
+
+acfs_refresh_loaded_checksums_from_remote() {
+    if [[ "$ACFS_CHECKSUMS_REMOTE_REFRESHED" == "true" ]]; then
+        return 0
+    fi
+
+    local refreshed_file=""
+    refreshed_file="$(mktemp "${TMPDIR:-/tmp}/acfs-checksums-refresh.XXXXXX" 2>/dev/null)" || refreshed_file=""
+    if [[ -z "$refreshed_file" ]]; then
+        log_detail "Unable to create temp file for refreshed checksums"
+        return 1
+    fi
+
+    if ! acfs_fetch_fresh_checksums_to_file "$refreshed_file"; then
+        rm -f "$refreshed_file"
+        return 1
+    fi
+
+    if ! load_checksums "$refreshed_file"; then
+        rm -f "$refreshed_file"
+        return 1
+    fi
+
+    ACFS_CHECKSUMS_REMOTE_REFRESHED=true
+    rm -f "$refreshed_file"
+    return 0
+}
 
 # ============================================================
 # Checksum Mismatch Batching

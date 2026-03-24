@@ -777,7 +777,37 @@ sync_acfs_zshrc() {
 # ============================================================
 
 CHECKSUMS_URL="https://raw.githubusercontent.com/${ACFS_REPO_OWNER}/${ACFS_REPO_NAME}/${ACFS_CHECKSUMS_REF}/checksums.yaml"
-CHECKSUMS_LOCAL="${HOME}/.acfs/checksums.yaml"
+CHECKSUMS_LOCAL="${ACFS_HOME:-$HOME/.acfs}/checksums.yaml"
+
+update_resolve_checksums_file() {
+    local installed_checksums="$CHECKSUMS_LOCAL"
+    local repo_checksums=""
+    local default_acfs_home="${ACFS_HOME:-$HOME/.acfs}"
+
+    if [[ -n "${ACFS_REPO_ROOT:-}" ]] && [[ -r "${ACFS_REPO_ROOT}/checksums.yaml" ]]; then
+        repo_checksums="${ACFS_REPO_ROOT}/checksums.yaml"
+    fi
+
+    # When running update.sh from a repo checkout, prefer the repo's committed
+    # checksums over any installed ~/.acfs cache so local development does not
+    # inherit stale metadata from an older ACFS install.
+    if [[ -n "$repo_checksums" ]] && [[ "${ACFS_REPO_ROOT}" != "$default_acfs_home" ]]; then
+        printf '%s\n' "$repo_checksums"
+        return 0
+    fi
+
+    if [[ -r "$installed_checksums" ]]; then
+        printf '%s\n' "$installed_checksums"
+        return 0
+    fi
+
+    if [[ -n "$repo_checksums" ]]; then
+        printf '%s\n' "$repo_checksums"
+        return 0
+    fi
+
+    return 1
+}
 
 # Refresh checksums.yaml from GitHub before verifying installers
 # This ensures we always have the latest checksums without requiring
@@ -884,8 +914,10 @@ update_require_security() {
         return 1
     fi
 
-    if [[ -f "$CHECKSUMS_LOCAL" ]]; then
-        export CHECKSUMS_FILE="$CHECKSUMS_LOCAL"
+    local resolved_checksums_file=""
+    resolved_checksums_file="$(update_resolve_checksums_file 2>/dev/null || true)"
+    if [[ -n "$resolved_checksums_file" ]]; then
+        export CHECKSUMS_FILE="$resolved_checksums_file"
     fi
     # shellcheck disable=SC1090,SC1091  # runtime-resolved absolute path source
     source "$security_script"
