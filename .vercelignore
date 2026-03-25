@@ -1,1 +1,6 @@
 tests/artifacts/**
+core.*
+**/core.*
+.next_trash_*
+**/.next_trash_*
+.git/**

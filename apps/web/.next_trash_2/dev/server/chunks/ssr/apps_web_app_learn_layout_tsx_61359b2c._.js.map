@@ -1,6 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 4, "column": 0}, "map": {"version":3,"sources":["file:///data/projects/agentic_coding_flywheel_setup/apps/web/app/learn/layout.tsx"],"sourcesContent":["import type { Metadata } from \"next\";\n\nconst siteUrl = \"https://agent-flywheel.com\";\n\nexport const metadata: Metadata = {\n  title: \"Learning Hub\",\n  description:\n    \"Master agentic coding with interactive lessons covering Linux basics, tmux, git, AI agents, and the complete Dicklesworthstone stack. From zero to autonomous coding workflows.\",\n  alternates: {\n    canonical: `${siteUrl}/learn`,\n  },\n};\n\nexport default function LearnLayout({\n  children,\n}: {\n  children: React.ReactNode;\n}) {\n  return children;\n}\n"],"names":[],"mappings":";;;;;;AAEA,MAAM,UAAU;AAET,MAAM,WAAqB;IAChC,OAAO;IACP,aACE;IACF,YAAY;QACV,WAAW,GAAG,QAAQ,MAAM,CAAC;IAC/B;AACF;AAEe,SAAS,YAAY,EAClC,QAAQ,EAGT;IACC,OAAO;AACT"}}]
-}
