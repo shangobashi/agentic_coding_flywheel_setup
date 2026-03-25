@@ -1061,21 +1061,41 @@ update_run_verified_installer() {
 # ============================================================
 
 # ------------------------------------------------------------
-# Refresh installed security.sh from the repo copy.
+# Refresh installed security.sh from the repo checkout.
 # Stale installed copies shadow the repo because
 # update_require_security() searches installed paths first.
+#
+# When acfs-update runs from ~/.acfs, ACFS_REPO_ROOT == ~/.acfs,
+# so "repo" and "installed" security.sh are the same file.
+# We explicitly check the workspace repo checkout to find the
+# authoritative copy that was updated by git pull.
 # ------------------------------------------------------------
 update_refresh_installed_security() {
-    local repo_security="${ACFS_REPO_ROOT}/scripts/lib/security.sh"
     local installed_security="${ACFS_HOME:-$HOME/.acfs}/scripts/lib/security.sh"
-    if [[ -f "$repo_security" ]] && [[ -f "$installed_security" ]]; then
-        local repo_sec_hash installed_sec_hash
-        repo_sec_hash=$(sha256sum "$repo_security" 2>/dev/null | cut -d' ' -f1) || true
-        installed_sec_hash=$(sha256sum "$installed_security" 2>/dev/null | cut -d' ' -f1) || true
-        if [[ -n "$repo_sec_hash" ]] && [[ "$repo_sec_hash" != "$installed_sec_hash" ]]; then
-            cp "$repo_security" "$installed_security"
-            log_to_file "Refreshed installed security.sh (was stale)"
+    [[ -f "$installed_security" ]] || return 0
+
+    # Find the authoritative repo checkout (may differ from ACFS_REPO_ROOT
+    # when running from the installed copy at ~/.acfs).
+    local repo_security=""
+    local -a repo_candidates=(
+        "/data/projects/agentic_coding_flywheel_setup/scripts/lib/security.sh"
+        "${ACFS_REPO_ROOT}/scripts/lib/security.sh"
+    )
+    for candidate in "${repo_candidates[@]}"; do
+        # Skip if it resolves to the same file as the installed copy
+        if [[ -f "$candidate" ]] && [[ "$(realpath "$candidate" 2>/dev/null)" != "$(realpath "$installed_security" 2>/dev/null)" ]]; then
+            repo_security="$candidate"
+            break
         fi
+    done
+    [[ -n "$repo_security" ]] || return 0
+
+    local repo_sec_hash installed_sec_hash
+    repo_sec_hash=$(sha256sum "$repo_security" 2>/dev/null | cut -d' ' -f1) || true
+    installed_sec_hash=$(sha256sum "$installed_security" 2>/dev/null | cut -d' ' -f1) || true
+    if [[ -n "$repo_sec_hash" ]] && [[ "$repo_sec_hash" != "$installed_sec_hash" ]]; then
+        cp "$repo_security" "$installed_security"
+        log_to_file "Refreshed installed security.sh from $repo_security (was stale)"
     fi
 }
 
