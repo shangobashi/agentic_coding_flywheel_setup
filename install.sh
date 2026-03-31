@@ -2983,7 +2983,7 @@ run_ubuntu_upgrade_phase() {
             local _upgradable=0
             if command -v apt-get &>/dev/null; then
                 # apt-get update may need root; try non-destructively first
-                _upgradable=$(apt list --upgradable 2>/dev/null | grep -c 'upgradable' || true)
+                _upgradable=$(apt list --upgradable 2>/dev/null | grep -c '\[upgradable' || true)
             fi
             if [[ "$_upgradable" -eq 0 ]]; then
                 log_detail "Ubuntu $_current_ver LTS is fully patched (0 packages upgradable); skipping auto-upgrade"
