@@ -262,11 +262,12 @@ check_disk() {
         check_path="$(dirname "$check_path")"
     done
 
+    # Capture df output once to avoid redundant subprocess and TOCTOU inconsistency
+    local df_line
+    df_line=$(df -k -P "$check_path" 2>/dev/null | tail -n 1)
+
     local free_kb
-    # Use -P for POSIX output (header + one line per FS), awk column 4 is usually Available
-    # Tail -n 1 to get the data line (more portable than tail -1)
-    # Using -k ensures 1K blocks
-    free_kb=$(df -k -P "$check_path" 2>/dev/null | tail -n 1 | awk '{print $4}')
+    free_kb=$(awk '{print $4}' <<< "$df_line")
 
     # Handle non-numeric or empty values
     if [[ -z "$free_kb" ]] || ! [[ "$free_kb" =~ ^[0-9]+$ ]]; then
@@ -275,8 +276,10 @@ check_disk() {
     fi
 
     local free_gb=$((free_kb / 1024 / 1024))
+    # Fields 1-5 are fixed (Filesystem, 1K-blocks, Used, Available, Use%);
+    # field 6+ is Mounted-on which may contain spaces, so print everything from field 6 onward
     local mount_point
-    mount_point=$(df -P "$check_path" 2>/dev/null | tail -n 1 | awk '{print $6}')
+    mount_point=$(awk '{for(i=6;i<=NF;i++) printf "%s%s", $i, (i<NF?" ":""); print ""}' <<< "$df_line")
     local detail_suffix=""
     if [[ -n "$mount_point" ]] && [[ "$mount_point" != "/" ]]; then
         detail_suffix=" on ${mount_point}"
