@@ -223,15 +223,8 @@ install_uv() {
     fi
 }
 
-# Configure uv environment variables
-configure_uv() {
-    local target_user="${TARGET_USER:-ubuntu}"
-    local target_home="${TARGET_HOME:-/home/$target_user}"
-
-    # UV_LINK_MODE=copy is recommended for Docker/VPS environments
-    # This will be set in acfs.zshrc, but log it for clarity
-    log_detail "uv configured with UV_LINK_MODE=copy (set in acfs.zshrc)"
-}
+# Note: uv environment configuration (UV_LINK_MODE=copy) is handled
+# by acfs/zsh/acfs.zshrc, not at install time.
 
 # Upgrade uv to latest version
 upgrade_uv() {
@@ -485,9 +478,6 @@ install_all_languages() {
     install_uv
     install_rust
     install_go
-
-    # Configure uv (sets environment variables)
-    configure_uv
 
     # Verify installation
     verify_languages
