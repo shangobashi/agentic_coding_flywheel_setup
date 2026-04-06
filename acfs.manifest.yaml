@@ -220,6 +220,18 @@ modules:
           echo 'export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.bun/bin:$PATH"' >> ~/.profile
         fi
       - |
+        # Setup ~/.zprofile for zsh login shells (zsh does NOT read ~/.profile)
+        if [[ ! -f ~/.zprofile ]]; then
+          echo '# ~/.zprofile: executed by zsh for login shells' > ~/.zprofile
+          echo '' >> ~/.zprofile
+          echo '# User binary paths' >> ~/.zprofile
+          echo 'export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.bun/bin:$PATH"' >> ~/.zprofile
+        elif ! grep -q '\.local/bin' ~/.zprofile; then
+          echo '' >> ~/.zprofile
+          echo '# Added by ACFS - user binary paths' >> ~/.zprofile
+          echo 'export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.bun/bin:$PATH"' >> ~/.zprofile
+        fi
+      - |
         # Set default shell
         if [[ "$SHELL" != */zsh ]]; then
           zsh_path="$(command -v zsh || true)"

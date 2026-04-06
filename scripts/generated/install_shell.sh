@@ -336,6 +336,27 @@ INSTALL_SHELL_OMZ
         fi
     fi
     if [[ "${DRY_RUN:-false}" = "true" ]]; then
+        log_info "dry-run: install: if [[ ! -f ~/.zprofile ]]; then (target_user)"
+    else
+        if ! run_as_target_shell <<'INSTALL_SHELL_OMZ'
+# Setup ~/.zprofile for zsh login shells (zsh does NOT read ~/.profile)
+if [[ ! -f ~/.zprofile ]]; then
+  echo '# ~/.zprofile: executed by zsh for login shells' > ~/.zprofile
+  echo '' >> ~/.zprofile
+  echo '# User binary paths' >> ~/.zprofile
+  echo 'export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.bun/bin:$PATH"' >> ~/.zprofile
+elif ! grep -q '\.local/bin' ~/.zprofile; then
+  echo '' >> ~/.zprofile
+  echo '# Added by ACFS - user binary paths' >> ~/.zprofile
+  echo 'export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.bun/bin:$PATH"' >> ~/.zprofile
+fi
+INSTALL_SHELL_OMZ
+        then
+            log_error "shell.omz: install command failed: if [[ ! -f ~/.zprofile ]]; then"
+            return 1
+        fi
+    fi
+    if [[ "${DRY_RUN:-false}" = "true" ]]; then
         log_info "dry-run: install: if [[ \"\$SHELL\" != */zsh ]]; then (target_user)"
     else
         if ! run_as_target_shell <<'INSTALL_SHELL_OMZ'

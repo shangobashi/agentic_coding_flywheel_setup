@@ -2,7 +2,7 @@
 # shellcheck disable=SC1091
 # ============================================================
 # ACFS Installer - Dicklesworthstone Stack Library
-# Installs all 18 Dicklesworthstone tools + utilities
+# Installs all 19 Dicklesworthstone tools + utilities
 # ============================================================
 
 STACK_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -23,6 +23,7 @@ declare -gA STACK_COMMANDS=(
     [mcp_agent_mail]="am"
     [ubs]="ubs"
     [bv]="bv"
+    [br]="br"
     [cass]="cass"
     [cm]="cm"
     [caam]="caam"
@@ -45,6 +46,7 @@ declare -gA STACK_NAMES=(
     [mcp_agent_mail]="MCP Agent Mail"
     [ubs]="Ultimate Bug Scanner"
     [bv]="Beads Viewer"
+    [br]="BR (Beads Rust)"
     [cass]="CASS (Coding Agent Session Search)"
     [cm]="CM (CASS Memory System)"
     [caam]="CAAM (Coding Agent Account Manager)"
@@ -602,6 +604,29 @@ install_bv() {
     return 1
 }
 
+# Install Beads Rust (BR)
+# Local-first issue tracker CLI
+install_beads_rust() {
+    local tool="br"
+
+    if _stack_is_installed "$tool"; then
+        log_detail "${STACK_NAMES[$tool]} already installed"
+        return 0
+    fi
+
+    log_detail "Installing ${STACK_NAMES[$tool]}..."
+
+    if _stack_run_installer "$tool"; then
+        if _stack_is_installed "$tool"; then
+            log_success "${STACK_NAMES[$tool]} installed"
+            return 0
+        fi
+    fi
+
+    log_warn "${STACK_NAMES[$tool]} installation may have failed"
+    return 1
+}
+
 # Install CASS (Coding Agent Session Search)
 # Unified session search
 install_cass() {
@@ -976,7 +1001,7 @@ verify_stack() {
 
     log_detail "Verifying Dicklesworthstone stack..."
 
-    for tool in ntm mcp_agent_mail ubs bv cass cm caam slb ru dcg rch pt fsfs sbh casr dsr asb pcr; do
+    for tool in ntm mcp_agent_mail ubs bv br cass cm caam slb ru dcg rch pt fsfs sbh casr dsr asb pcr; do
         local cmd="${STACK_COMMANDS[$tool]}"
         local name="${STACK_NAMES[$tool]}"
 
@@ -1004,7 +1029,7 @@ verify_stack_help() {
 
     log_detail "Testing stack tools --help..."
 
-    for tool in ntm mcp_agent_mail ubs bv cass cm caam slb ru dcg rch pt fsfs sbh casr dsr asb pcr; do
+    for tool in ntm mcp_agent_mail ubs bv br cass cm caam slb ru dcg rch pt fsfs sbh casr dsr asb pcr; do
         local cmd="${STACK_COMMANDS[$tool]}"
 
         if _stack_is_installed "$tool"; then
@@ -1027,7 +1052,7 @@ verify_stack_help() {
 get_stack_versions() {
     echo "Dicklesworthstone Stack Versions:"
 
-    for tool in ntm mcp_agent_mail ubs bv cass cm caam slb ru dcg rch pt fsfs sbh casr dsr asb pcr; do
+    for tool in ntm mcp_agent_mail ubs bv br cass cm caam slb ru dcg rch pt fsfs sbh casr dsr asb pcr; do
         local cmd="${STACK_COMMANDS[$tool]}"
         local name="${STACK_NAMES[$tool]}"
 
@@ -1052,6 +1077,7 @@ install_all_stack() {
     install_mcp_agent_mail
     install_ubs
     install_bv
+    install_beads_rust
     install_cass
     install_cm
     install_caam
