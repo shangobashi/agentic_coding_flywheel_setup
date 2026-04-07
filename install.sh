@@ -145,10 +145,14 @@ if [[ -z "${TARGET_USER:-}" ]]; then
     TARGET_USER="$_ACFS_DETECTED_USER"
 fi
 unset _ACFS_DETECTED_USER
+# Export TARGET_USER early so subprocesses (e.g. preflight.sh) can use it
+# to determine the correct installation partition for disk-space checks (#243).
+export TARGET_USER
 # Leave TARGET_HOME unset by default; init_target_paths will derive it from:
 # - $HOME when running as TARGET_USER
 # - /home/$TARGET_USER otherwise
 TARGET_HOME="${TARGET_HOME:-}"
+export TARGET_HOME
 
 # Colors
 RED='\033[0;31m'
