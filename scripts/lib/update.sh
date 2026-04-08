@@ -2404,7 +2404,9 @@ update_stack() {
     local expected_sha256
     expected_sha256="$(get_checksum "$tool")"
 
-    if [[ -n "$url" ]] && [[ -n "$expected_sha256" ]]; then
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log_item "skip" "MCP Agent Mail" "dry-run: verified install + service refresh"
+    elif [[ -n "$url" ]] && [[ -n "$expected_sha256" ]]; then
         local tmp_install
         tmp_install=$(mktemp "${TMPDIR:-/tmp}/acfs-install-am.XXXXXX" 2>/dev/null) || tmp_install=""
         if [[ -z "$tmp_install" ]]; then
