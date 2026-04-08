@@ -71,10 +71,16 @@ if [[ "\${BASH_SOURCE[0]}" = "\${0}" ]]; then
     if [[ -z "\${TARGET_HOME:-}" ]]; then
         if [[ "\${TARGET_USER}" == "root" ]]; then
             TARGET_HOME="/root"
-        elif [[ "\$(whoami 2>/dev/null || true)" == "\${TARGET_USER}" ]]; then
-            TARGET_HOME="\${HOME}"
         else
-            TARGET_HOME="/home/\${TARGET_USER}"
+            _acfs_passwd_entry="\$(getent passwd "\${TARGET_USER}" 2>/dev/null || true)"
+            if [[ -n "\$_acfs_passwd_entry" ]]; then
+                TARGET_HOME="\$(printf '%s\\n' "\$_acfs_passwd_entry" | cut -d: -f6)"
+            elif [[ "\$(whoami 2>/dev/null || true)" == "\${TARGET_USER}" ]]; then
+                TARGET_HOME="\${HOME}"
+            else
+                TARGET_HOME="/home/\${TARGET_USER}"
+            fi
+            unset _acfs_passwd_entry
         fi
     fi
 
@@ -225,7 +231,7 @@ function shellQuote(str: string): string {
  * However, we allow specific runtime variables to be expanded:
  * - TARGET_HOME
  * - TARGET_USER
- * - TARGET_HOME with Ubuntu default fallback
+ * - TARGET_HOME with dynamic HOME/target-user fallback
  * - TARGET_USER with Ubuntu default fallback
  *
  * SECURITY:
@@ -240,7 +246,7 @@ function shellQuoteVerifiedInstallerArg(str: string): string {
   // Regex to capture allowed variables.
   // Order matters: match longest tokens first (${VAR} before $VAR).
   // capturing group () is included in split output.
-  const variablePattern = /(\$\{TARGET_HOME:-\/home\/ubuntu\}|\$\{TARGET_USER:-ubuntu\}|\$\{TARGET_HOME\}|\$TARGET_HOME|\$\{TARGET_USER\}|\$TARGET_USER)/g;
+  const variablePattern = /(\$\{TARGET_HOME:-\$\{HOME:-\/home\/\$\{TARGET_USER:-ubuntu\}\}\}|\$\{TARGET_USER:-ubuntu\}|\$\{TARGET_HOME\}|\$TARGET_HOME|\$\{TARGET_USER\}|\$TARGET_USER)/g;
 
   const parts = str.split(variablePattern);
 
@@ -248,7 +254,7 @@ function shellQuoteVerifiedInstallerArg(str: string): string {
     .map((part) => {
       // If it's one of our allowed variables, wrap in double quotes to allow expansion
       if (
-        part === '${TARGET_HOME:-/home/ubuntu}' ||
+        part === '${TARGET_HOME:-${HOME:-/home/${TARGET_USER:-ubuntu}}}' ||
         part === '${TARGET_USER:-ubuntu}' ||
         part === '${TARGET_HOME}' ||
         part === '$TARGET_HOME' ||

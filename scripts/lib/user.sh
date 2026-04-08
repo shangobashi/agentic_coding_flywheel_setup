@@ -34,14 +34,38 @@ else
     : "${SUDO:=sudo}"
 fi
 
+user_home_for_user() {
+    local user="${1:-}"
+    local passwd_entry=""
+
+    [[ -n "$user" ]] || return 1
+
+    if [[ "$user" == "root" ]]; then
+        printf '/root\n'
+        return 0
+    fi
+
+    passwd_entry="$(getent passwd "$user" 2>/dev/null || true)"
+    if [[ -n "$passwd_entry" ]]; then
+        passwd_entry="$(printf '%s\n' "$passwd_entry" | cut -d: -f6)"
+        if [[ -n "$passwd_entry" ]] && [[ "$passwd_entry" == /* ]]; then
+            printf '%s\n' "$passwd_entry"
+            return 0
+        fi
+    fi
+
+    if [[ "$(whoami 2>/dev/null || true)" == "$user" ]] && [[ -n "${HOME:-}" ]] && [[ "${HOME}" == /* ]]; then
+        printf '%s\n' "$HOME"
+        return 0
+    fi
+
+    printf '/home/%s\n' "$user"
+}
+
 # Target user for ACFS installations
 TARGET_USER="${TARGET_USER:-ubuntu}"
 if [[ -z "${TARGET_HOME:-}" ]]; then
-    if [[ "${TARGET_USER}" == "root" ]]; then
-        TARGET_HOME="/root"
-    else
-        TARGET_HOME="/home/$TARGET_USER"
-    fi
+    TARGET_HOME="$(user_home_for_user "$TARGET_USER")"
 fi
 
 # Generate a random password robustly

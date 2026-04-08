@@ -29,10 +29,16 @@ if [[ "${BASH_SOURCE[0]}" = "${0}" ]]; then
     if [[ -z "${TARGET_HOME:-}" ]]; then
         if [[ "${TARGET_USER}" == "root" ]]; then
             TARGET_HOME="/root"
-        elif [[ "$(whoami 2>/dev/null || true)" == "${TARGET_USER}" ]]; then
-            TARGET_HOME="${HOME}"
         else
-            TARGET_HOME="/home/${TARGET_USER}"
+            _acfs_passwd_entry="$(getent passwd "${TARGET_USER}" 2>/dev/null || true)"
+            if [[ -n "$_acfs_passwd_entry" ]]; then
+                TARGET_HOME="$(printf '%s\n' "$_acfs_passwd_entry" | cut -d: -f6)"
+            elif [[ "$(whoami 2>/dev/null || true)" == "${TARGET_USER}" ]]; then
+                TARGET_HOME="${HOME}"
+            else
+                TARGET_HOME="/home/${TARGET_USER}"
+            fi
+            unset _acfs_passwd_entry
         fi
     fi
 
@@ -114,7 +120,7 @@ declare -a MANIFEST_CHECKS=(
     "users.ubuntu.2	Ensure target user + passwordless sudo + ssh keys	[[ \"\${MODE:-vibe}\" != \"vibe\" ]] || runuser -u \"\${TARGET_USER:-ubuntu}\" -- sudo -n true	required	root"
     "base.filesystem.1	Create workspace and ACFS directories	test -d /data/projects	required	root"
     "base.filesystem.2	Create workspace and ACFS directories	test -f /data/projects/AGENTS.md	required	root"
-    "base.filesystem.3	Create workspace and ACFS directories	test -d \"\${TARGET_HOME:-/home/ubuntu}/.acfs\"	required	root"
+    "base.filesystem.3	Create workspace and ACFS directories	target_home=\"\${TARGET_HOME:-}\"\\nif [[ -z \"\$target_home\" ]]; then\\n  if [[ \"\${TARGET_USER:-ubuntu}\" == \"root\" ]]; then\\n    target_home=\"/root\"\\n  else\\n    _acfs_passwd_entry=\"\$(getent passwd \"\${TARGET_USER:-ubuntu}\" 2>/dev/null || true)\"\\n    if [[ -n \"\$_acfs_passwd_entry\" ]]; then\\n      target_home=\"\$(printf '%s\\\\n' \"\$_acfs_passwd_entry\" | cut -d: -f6)\"\\n    else\\n      target_home=\"/home/\${TARGET_USER:-ubuntu}\"\\n    fi\\n    unset _acfs_passwd_entry\\n  fi\\nfi\\ntest -d \"\$target_home/.acfs\"	required	root"
     "shell.zsh	Zsh shell package	zsh --version	required	root"
     "shell.omz.1	Oh My Zsh + Powerlevel10k + plugins + ACFS config	test -d ~/.oh-my-zsh	required	target_user"
     "shell.omz.2	Oh My Zsh + Powerlevel10k + plugins + ACFS config	test -f ~/.acfs/zsh/acfs.zshrc	required	target_user"

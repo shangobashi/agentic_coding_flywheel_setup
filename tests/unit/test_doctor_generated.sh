@@ -407,6 +407,39 @@ test_workspace_checks_are_not_required_health_failures() {
     fi
 }
 
+test_generated_target_home_fallbacks_are_dynamic() {
+    harness_section "Test: Generated target-home fallbacks are dynamic"
+
+    local doctor_file filesystem_file stack_file
+    doctor_file="$REPO_ROOT/scripts/generated/doctor_checks.sh"
+    filesystem_file="$REPO_ROOT/scripts/generated/install_filesystem.sh"
+    stack_file="$REPO_ROOT/scripts/generated/install_stack.sh"
+
+    if grep -Fq '${TARGET_HOME:-/home/ubuntu}' "$doctor_file"; then
+        harness_fail "doctor_checks.sh still hardcodes /home/ubuntu for TARGET_HOME fallback"
+    else
+        harness_pass "doctor_checks.sh no longer hardcodes /home/ubuntu for TARGET_HOME fallback"
+    fi
+
+    if grep -Fq '${TARGET_HOME:-/home/ubuntu}' "$filesystem_file"; then
+        harness_fail "install_filesystem.sh still hardcodes /home/ubuntu for TARGET_HOME fallback"
+    else
+        harness_pass "install_filesystem.sh no longer hardcodes /home/ubuntu for TARGET_HOME fallback"
+    fi
+
+    if grep -Fq '${TARGET_HOME:-/home/ubuntu}' "$stack_file"; then
+        harness_fail "install_stack.sh still hardcodes /home/ubuntu for TARGET_HOME fallback"
+    else
+        harness_pass "install_stack.sh no longer hardcodes /home/ubuntu for TARGET_HOME fallback"
+    fi
+
+    if grep -Fq 'getent passwd "${TARGET_USER:-ubuntu}"' "$filesystem_file"; then
+        harness_pass "install_filesystem.sh resolves TARGET_HOME through getent when unset"
+    else
+        harness_fail "install_filesystem.sh does not resolve TARGET_HOME through getent when unset"
+    fi
+}
+
 test_meta_skill_arm64_linux_guidance() {
     harness_section "Test: meta_skill ARM64 Linux guidance is specific"
 
@@ -516,6 +549,7 @@ main() {
     test_doctor_summary_counts
     test_root_checks_preserve_target_context
     test_workspace_checks_are_not_required_health_failures
+    test_generated_target_home_fallbacks_are_dynamic
     test_meta_skill_arm64_linux_guidance
     test_manifest_supplemental_coverage_is_precise
     test_manifest_guard_scripts_cover_all_generated_outputs

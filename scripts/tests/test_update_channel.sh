@@ -88,6 +88,33 @@ else
 fi
 
 # ============================================================
+section "Test 2b: update_target_home resolves passwd homes"
+# ============================================================
+home_resolution_output=$(
+    bash -c '
+        source "'"$UPDATE_SH"'"
+        TARGET_HOME=""
+        HOME="/tmp/not-the-target-home"
+
+        getent() {
+            if [[ "$1" == "passwd" && "$2" == "dummy" ]]; then
+                printf "dummy:x:1000:1000::/srv/dummy:/bin/bash\n"
+                return 0
+            fi
+            command getent "$@"
+        }
+
+        update_target_home dummy
+    ' 2>&1
+) || true
+
+if [[ "$home_resolution_output" == "/srv/dummy" ]]; then
+    pass "update_target_home prefers passwd-resolved homes over /home fallback"
+else
+    fail "update_target_home did not use passwd-resolved home: $home_resolution_output"
+fi
+
+# ============================================================
 section "Test 3: Dry-run behavior"
 # ============================================================
 # Source update.sh in a subshell. The BASH_SOURCE guard at line ~2444 prevents

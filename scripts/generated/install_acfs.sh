@@ -29,10 +29,16 @@ if [[ "${BASH_SOURCE[0]}" = "${0}" ]]; then
     if [[ -z "${TARGET_HOME:-}" ]]; then
         if [[ "${TARGET_USER}" == "root" ]]; then
             TARGET_HOME="/root"
-        elif [[ "$(whoami 2>/dev/null || true)" == "${TARGET_USER}" ]]; then
-            TARGET_HOME="${HOME}"
         else
-            TARGET_HOME="/home/${TARGET_USER}"
+            _acfs_passwd_entry="$(getent passwd "${TARGET_USER}" 2>/dev/null || true)"
+            if [[ -n "$_acfs_passwd_entry" ]]; then
+                TARGET_HOME="$(printf '%s\n' "$_acfs_passwd_entry" | cut -d: -f6)"
+            elif [[ "$(whoami 2>/dev/null || true)" == "${TARGET_USER}" ]]; then
+                TARGET_HOME="${HOME}"
+            else
+                TARGET_HOME="/home/${TARGET_USER}"
+            fi
+            unset _acfs_passwd_entry
         fi
     fi
 

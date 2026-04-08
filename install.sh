@@ -148,9 +148,9 @@ unset _ACFS_DETECTED_USER
 # Export TARGET_USER early so subprocesses (e.g. preflight.sh) can use it
 # to determine the correct installation partition for disk-space checks (#243).
 export TARGET_USER
-# Leave TARGET_HOME unset by default; init_target_paths will derive it from:
-# - $HOME when running as TARGET_USER
-# - /home/$TARGET_USER otherwise
+# Leave TARGET_HOME unset by default; init_target_paths will derive it from
+# the real passwd entry when possible and only fall back to /home/$TARGET_USER
+# as a last resort.
 TARGET_HOME="${TARGET_HOME:-}"
 export TARGET_HOME
 
@@ -2866,16 +2866,44 @@ confirm_or_exit() {
     esac
 }
 
+# Resolve a user's home directory from NSS when possible.
+acfs_home_for_user() {
+    local user="${1:-}"
+    local passwd_entry=""
+    local current_user=""
+
+    [[ -n "$user" ]] || return 1
+
+    if [[ "$user" == "root" ]]; then
+        printf '/root\n'
+        return 0
+    fi
+
+    passwd_entry="$(getent passwd "$user" 2>/dev/null || true)"
+    if [[ -n "$passwd_entry" ]]; then
+        passwd_entry="$(printf '%s\n' "$passwd_entry" | cut -d: -f6)"
+        if [[ -n "$passwd_entry" ]] && [[ "$passwd_entry" == /* ]]; then
+            printf '%s\n' "$passwd_entry"
+            return 0
+        fi
+    fi
+
+    current_user="$(whoami 2>/dev/null || true)"
+    if [[ "$current_user" == "$user" ]] && [[ -n "${HOME:-}" ]] && [[ "${HOME}" == /* ]]; then
+        printf '%s\n' "$HOME"
+        return 0
+    fi
+
+    printf '/home/%s\n' "$user"
+}
+
 # Set up target-specific paths
 # Must be called after ensure_root
 init_target_paths() {
-    # If running as the target user, use their $HOME directly.
-    # If running as root (or another user), derive TARGET_HOME from TARGET_USER.
-    if [[ "$(whoami)" == "$TARGET_USER" ]]; then
-        TARGET_HOME="${TARGET_HOME:-$HOME}"
-    else
-        # Respect an explicit TARGET_HOME env override (default is /home/$TARGET_USER).
-        TARGET_HOME="${TARGET_HOME:-/home/$TARGET_USER}"
+    # Respect an explicit TARGET_HOME env override; otherwise resolve the
+    # target user's actual home directory through NSS/getent first.
+    if [[ -z "${TARGET_HOME:-}" ]]; then
+        TARGET_HOME="$(acfs_home_for_user "$TARGET_USER")"
     fi
 
     if [[ -z "$TARGET_HOME" ]] || [[ "$TARGET_HOME" == "/" ]]; then

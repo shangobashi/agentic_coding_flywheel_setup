@@ -29,10 +29,16 @@ if [[ "${BASH_SOURCE[0]}" = "${0}" ]]; then
     if [[ -z "${TARGET_HOME:-}" ]]; then
         if [[ "${TARGET_USER}" == "root" ]]; then
             TARGET_HOME="/root"
-        elif [[ "$(whoami 2>/dev/null || true)" == "${TARGET_USER}" ]]; then
-            TARGET_HOME="${HOME}"
         else
-            TARGET_HOME="/home/${TARGET_USER}"
+            _acfs_passwd_entry="$(getent passwd "${TARGET_USER}" 2>/dev/null || true)"
+            if [[ -n "$_acfs_passwd_entry" ]]; then
+                TARGET_HOME="$(printf '%s\n' "$_acfs_passwd_entry" | cut -d: -f6)"
+            elif [[ "$(whoami 2>/dev/null || true)" == "${TARGET_USER}" ]]; then
+                TARGET_HOME="${HOME}"
+            else
+                TARGET_HOME="/home/${TARGET_USER}"
+            fi
+            unset _acfs_passwd_entry
         fi
     fi
 
@@ -149,10 +155,23 @@ INSTALL_BASE_FILESYSTEM
         fi
     fi
     if [[ "${DRY_RUN:-false}" = "true" ]]; then
-        log_info "dry-run: install: if [[ -z \"\$target_home\" || \"\$target_home\" == \"/\" || \"\$target_home\" != /* ]]; then (root)"
+        log_info "dry-run: install: if [[ -z \"\$target_home\" ]]; then (root)"
     else
         if ! run_as_root_shell <<'INSTALL_BASE_FILESYSTEM'
-target_home="${TARGET_HOME:-/home/ubuntu}"
+target_home="${TARGET_HOME:-}"
+if [[ -z "$target_home" ]]; then
+  if [[ "${TARGET_USER:-ubuntu}" == "root" ]]; then
+    target_home="/root"
+  else
+    _acfs_passwd_entry="$(getent passwd "${TARGET_USER:-ubuntu}" 2>/dev/null || true)"
+    if [[ -n "$_acfs_passwd_entry" ]]; then
+      target_home="$(printf '%s\n' "$_acfs_passwd_entry" | cut -d: -f6)"
+    else
+      target_home="/home/${TARGET_USER:-ubuntu}"
+    fi
+    unset _acfs_passwd_entry
+  fi
+fi
 if [[ -z "$target_home" || "$target_home" == "/" || "$target_home" != /* ]]; then
   echo "ERROR: Invalid TARGET_HOME: '${target_home:-<empty>}'" >&2
   exit 1
@@ -166,7 +185,7 @@ mkdir -p "$target_home/.acfs"
 chown -hR "${TARGET_USER:-ubuntu}:${TARGET_USER:-ubuntu}" "$target_home/.acfs"
 INSTALL_BASE_FILESYSTEM
         then
-            log_error "base.filesystem: install command failed: if [[ -z \"\$target_home\" || \"\$target_home\" == \"/\" || \"\$target_home\" != /* ]]; then"
+            log_error "base.filesystem: install command failed: if [[ -z \"\$target_home\" ]]; then"
             return 1
         fi
     fi
@@ -195,13 +214,27 @@ INSTALL_BASE_FILESYSTEM
         fi
     fi
     if [[ "${DRY_RUN:-false}" = "true" ]]; then
-        log_info "dry-run: verify: test -d \"\${TARGET_HOME:-/home/ubuntu}/.acfs\" (root)"
+        log_info "dry-run: verify: if [[ -z \"\$target_home\" ]]; then (root)"
     else
         if ! run_as_root_shell <<'INSTALL_BASE_FILESYSTEM'
-test -d "${TARGET_HOME:-/home/ubuntu}/.acfs"
+target_home="${TARGET_HOME:-}"
+if [[ -z "$target_home" ]]; then
+  if [[ "${TARGET_USER:-ubuntu}" == "root" ]]; then
+    target_home="/root"
+  else
+    _acfs_passwd_entry="$(getent passwd "${TARGET_USER:-ubuntu}" 2>/dev/null || true)"
+    if [[ -n "$_acfs_passwd_entry" ]]; then
+      target_home="$(printf '%s\n' "$_acfs_passwd_entry" | cut -d: -f6)"
+    else
+      target_home="/home/${TARGET_USER:-ubuntu}"
+    fi
+    unset _acfs_passwd_entry
+  fi
+fi
+test -d "$target_home/.acfs"
 INSTALL_BASE_FILESYSTEM
         then
-            log_error "base.filesystem: verify failed: test -d \"\${TARGET_HOME:-/home/ubuntu}/.acfs\""
+            log_error "base.filesystem: verify failed: if [[ -z \"\$target_home\" ]]; then"
             return 1
         fi
     fi

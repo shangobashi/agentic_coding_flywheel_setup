@@ -634,14 +634,31 @@ update_target_user() {
 
 update_target_home() {
     local target_user="${1:-}"
+    local passwd_entry=""
+    local current_user=""
 
     if [[ -n "${TARGET_HOME:-}" ]]; then
         printf '%s\n' "$TARGET_HOME"
         return 0
     fi
 
+    passwd_entry="$(getent passwd "$target_user" 2>/dev/null || true)"
+    if [[ -n "$passwd_entry" ]]; then
+        passwd_entry="$(printf '%s\n' "$passwd_entry" | cut -d: -f6)"
+        if [[ -n "$passwd_entry" ]] && [[ "$passwd_entry" == /* ]]; then
+            printf '%s\n' "$passwd_entry"
+            return 0
+        fi
+    fi
+
     if [[ "$target_user" == "root" ]]; then
         printf '%s\n' "/root"
+        return 0
+    fi
+
+    current_user="$(update_current_user)"
+    if [[ "$target_user" == "$current_user" ]] && [[ -n "${HOME:-}" ]] && [[ "${HOME}" == /* ]]; then
+        printf '%s\n' "$HOME"
         return 0
     fi
 

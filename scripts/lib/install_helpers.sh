@@ -598,6 +598,35 @@ _run_shell_with_strict_mode() {
     bash -c "$env_setup; set -euo pipefail; (printf '%s\n' 'set -euo pipefail'; cat) | bash -s"
 }
 
+# Resolve a target user's home via NSS/getent with safe fallbacks.
+if ! declare -f _acfs_resolve_target_home >/dev/null 2>&1; then
+    _acfs_resolve_target_home() {
+        local user="${1:-ubuntu}"
+        local passwd_entry=""
+
+        if [[ "$user" == "root" ]]; then
+            printf '/root\n'
+            return 0
+        fi
+
+        passwd_entry="$(getent passwd "$user" 2>/dev/null || true)"
+        if [[ -n "$passwd_entry" ]]; then
+            passwd_entry="$(printf '%s\n' "$passwd_entry" | cut -d: -f6)"
+            if [[ -n "$passwd_entry" ]] && [[ "$passwd_entry" == /* ]]; then
+                printf '%s\n' "$passwd_entry"
+                return 0
+            fi
+        fi
+
+        if [[ "$(whoami 2>/dev/null || true)" == "$user" ]] && [[ -n "${HOME:-}" ]] && [[ "${HOME}" == /* ]]; then
+            printf '%s\n' "$HOME"
+            return 0
+        fi
+
+        printf '/home/%s\n' "$user"
+    }
+fi
+
 # Provide a default run_as_target implementation for generated scripts (and other callers)
 # when the orchestrator (install.sh) isn't in scope.
 #
@@ -607,7 +636,12 @@ _run_shell_with_strict_mode() {
 if ! declare -f run_as_target >/dev/null 2>&1; then
     run_as_target() {
         local user="${TARGET_USER:-ubuntu}"
-        local user_home="${TARGET_HOME:-/home/$user}"
+        local user_home="${TARGET_HOME:-}"
+
+        if [[ -z "$user_home" ]]; then
+            user_home="$(_acfs_resolve_target_home "$user")"
+        fi
+
         local target_path_prefix="${ACFS_BIN_DIR:-$user_home/.local/bin}:$user_home/.cargo/bin:$user_home/.bun/bin:$user_home/.atuin/bin:$user_home/go/bin"
         local current_path="${PATH:-/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin}"
 

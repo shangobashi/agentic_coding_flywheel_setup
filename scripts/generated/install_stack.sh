@@ -29,10 +29,16 @@ if [[ "${BASH_SOURCE[0]}" = "${0}" ]]; then
     if [[ -z "${TARGET_HOME:-}" ]]; then
         if [[ "${TARGET_USER}" == "root" ]]; then
             TARGET_HOME="/root"
-        elif [[ "$(whoami 2>/dev/null || true)" == "${TARGET_USER}" ]]; then
-            TARGET_HOME="${HOME}"
         else
-            TARGET_HOME="/home/${TARGET_USER}"
+            _acfs_passwd_entry="$(getent passwd "${TARGET_USER}" 2>/dev/null || true)"
+            if [[ -n "$_acfs_passwd_entry" ]]; then
+                TARGET_HOME="$(printf '%s\n' "$_acfs_passwd_entry" | cut -d: -f6)"
+            elif [[ "$(whoami 2>/dev/null || true)" == "${TARGET_USER}" ]]; then
+                TARGET_HOME="${HOME}"
+            else
+                TARGET_HOME="/home/${TARGET_USER}"
+            fi
+            unset _acfs_passwd_entry
         fi
     fi
 
@@ -210,7 +216,7 @@ install_stack_mcp_agent_mail() {
                     fi
 
                     if [[ -n "$url" ]] && [[ -n "$expected_sha256" ]]; then
-                        if verify_checksum "$url" "$expected_sha256" "$tool" | run_as_target_runner 'bash' '-s' '--' '--dest' "${TARGET_HOME:-/home/ubuntu}"'/mcp_agent_mail' '--yes'; then
+                        if verify_checksum "$url" "$expected_sha256" "$tool" | run_as_target_runner 'bash' '-s' '--' '--dest' "${TARGET_HOME:-${HOME:-/home/${TARGET_USER:-ubuntu}}}"'/mcp_agent_mail' '--yes'; then
                             install_success=true
                         else
                             log_error "stack.mcp_agent_mail: verify_checksum or installer execution failed"
