@@ -124,6 +124,18 @@ _agent_has_nvm_node() {
     compgen -G "$target_home/.nvm/versions/node/*/bin/node" >/dev/null 2>&1
 }
 
+_agent_latest_nvm_node_bin() {
+    local target_user="${TARGET_USER:-ubuntu}"
+    local target_home="${TARGET_HOME:-/home/$target_user}"
+    local latest_bin=""
+
+    latest_bin="$(
+        compgen -G "$target_home/.nvm/versions/node/*/bin" | sort -V | tail -n 1
+    )"
+    [[ -n "$latest_bin" ]] || return 1
+    printf '%s\n' "$latest_bin"
+}
+
 _agent_ensure_nvm_node() {
     local patch_tool="nvm"
     local installer_url=""
@@ -178,6 +190,7 @@ _agent_apply_verified_gemini_patch() {
     local patch_tool="gemini_patch"
     local patch_url="https://raw.githubusercontent.com/Dicklesworthstone/misc_coding_agent_tips_and_scripts/main/fix-gemini-cli-ebadf-crash.sh"
     local patch_sha=""
+    local node_bin_dir=""
 
     if [[ -f "$AGENTS_SCRIPT_DIR/security.sh" ]]; then
         # shellcheck source=security.sh
@@ -198,7 +211,12 @@ _agent_apply_verified_gemini_patch() {
         return 1
     fi
 
-    if _agent_run_as_user "source '$AGENTS_SCRIPT_DIR/security.sh'; verify_checksum '$patch_url' '$patch_sha' '$patch_tool' | bash -s --"; then
+    if ! node_bin_dir="$(_agent_latest_nvm_node_bin)"; then
+        log_warn "nvm Node.js bin not found; skipping Gemini patch"
+        return 1
+    fi
+
+    if _agent_run_as_user "export PATH='$node_bin_dir':\"\$PATH\"; source '$AGENTS_SCRIPT_DIR/security.sh'; verify_checksum '$patch_url' '$patch_sha' '$patch_tool' | bash -s --"; then
         return 0
     fi
 

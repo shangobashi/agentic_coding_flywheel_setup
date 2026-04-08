@@ -4074,6 +4074,15 @@ _target_has_nvm_node() {
     compgen -G "$TARGET_HOME/.nvm/versions/node/*/bin/node" >/dev/null 2>&1
 }
 
+_target_latest_nvm_node_bin() {
+    local latest_bin=""
+    latest_bin="$(
+        compgen -G "$TARGET_HOME/.nvm/versions/node/*/bin" | sort -V | tail -n 1
+    )"
+    [[ -n "$latest_bin" ]] || return 1
+    printf '%s\n' "$latest_bin"
+}
+
 _ensure_target_nvm_node() {
     if _target_has_nvm_node; then
         log_detail "nvm + Node.js already installed"
@@ -4423,8 +4432,15 @@ install_agents_phase() {
     if [[ -x "$TARGET_HOME/.bun/bin/gemini" ]]; then
         log_detail "Applying Gemini CLI patches (EBADF, retry, quota)"
         if _ensure_target_nvm_node; then
-            try_step "Patching Gemini CLI" acfs_run_verified_upstream_script_as_target "gemini_patch" "bash" || \
-                log_warn "Gemini CLI patch step failed (continuing)"
+            local gemini_nvm_bin=""
+            if gemini_nvm_bin="$(_target_latest_nvm_node_bin)"; then
+                try_step "Patching Gemini CLI" \
+                    acfs_run_verified_upstream_script_as_target_with_env \
+                    "gemini_patch" "bash" "PATH=$gemini_nvm_bin:$PATH" || \
+                    log_warn "Gemini CLI patch step failed (continuing)"
+            else
+                log_warn "Skipping Gemini CLI patch because no nvm Node.js bin was found after install"
+            fi
         else
             log_warn "Skipping Gemini CLI patch because Node.js via nvm could not be prepared"
             log_warn "Re-run phase 5 or install nvm manually, then re-run the Gemini patch"

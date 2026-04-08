@@ -473,8 +473,14 @@ run_one() {
             echo "Installing ACFS..."
             cd /repo
             install_log=/tmp/acfs-install.log
-            ACFS_CI=true CARGO_BUILD_JOBS=1 bash install.sh --yes --mode vibe --skip-ubuntu-upgrade 2>&1 | tee "$install_log"
-            if grep -q "node is required but not found (bun's node wrapper is not compatible)" "$install_log"; then
+            install_status=0
+            ACFS_CI=true CARGO_BUILD_JOBS=1 bash install.sh --yes --mode vibe --skip-ubuntu-upgrade >"$install_log" 2>&1 || install_status=$?
+            cat "$install_log"
+            if [[ $install_status -ne 0 ]]; then
+                echo "ERROR: install.sh failed during VM update test" >&2
+                exit "$install_status"
+            fi
+            if grep -q "node is required but not found" "$install_log"; then
                 echo "ERROR: installer still emitted the Gemini patch missing-node warning" >&2
                 exit 1
             fi

@@ -151,6 +151,15 @@ update_has_nvm_node() {
     compgen -G "$HOME/.nvm/versions/node/*/bin/node" >/dev/null 2>&1
 }
 
+update_nvm_node_bin_dir() {
+    local latest_bin=""
+    latest_bin="$(
+        compgen -G "$HOME/.nvm/versions/node/*/bin" | sort -V | tail -n 1
+    )"
+    [[ -n "$latest_bin" ]] || return 1
+    printf '%s\n' "$latest_bin"
+}
+
 update_ensure_gemini_patch_node() {
     if update_has_nvm_node; then
         return 0
@@ -1985,6 +1994,7 @@ update_agents() {
     # Gemini CLI via bun (--trust allows postinstall scripts)
     if cmd_exists gemini || [[ "$FORCE_MODE" == "true" ]]; then
         local gemini_patch_ready=true
+        local gemini_nvm_bin=""
         capture_version_before "gemini"
         run_cmd_bun_with_retry "Gemini CLI" "$bun_bin" install -g --trust @google/gemini-cli@latest
         # Show version change without double-counting
@@ -2005,8 +2015,12 @@ update_agents() {
                 gemini_patch_ready=false
             fi
         fi
+        if [[ "$gemini_patch_ready" == "true" ]] && ! gemini_nvm_bin="$(update_nvm_node_bin_dir)"; then
+            log_item "warn" "Node.js runtime for Gemini patch" "nvm Node.js bin not found; skipping Gemini patch"
+            gemini_patch_ready=false
+        fi
         if [[ "$gemini_patch_ready" == "true" ]]; then
-            run_cmd "Gemini CLI patches" update_run_verified_installer gemini_patch
+            run_cmd "Gemini CLI patches" update_run_verified_installer_with_env gemini_patch "PATH=$gemini_nvm_bin:$PATH"
         else
             log_item "skip" "Gemini CLI patches" "Node.js runtime unavailable"
         fi

@@ -305,6 +305,12 @@ if ! compgen -G "$HOME/.nvm/versions/node/*/bin/node" > /dev/null; then
   nvm install node
   nvm alias default node
 fi
+nvm_node_bin="$(compgen -G "$HOME/.nvm/versions/node/*/bin" | sort -V | tail -n 1)"
+if [[ -z "$nvm_node_bin" ]]; then
+  echo "agents.gemini: nvm Node.js bin not found after install" >&2
+  exit 1
+fi
+export PATH="$nvm_node_bin:$PATH"
 patch_url="${KNOWN_INSTALLERS[gemini_patch]:-}"
 patch_sha256="$(get_checksum gemini_patch)"
 if [[ -z "$patch_url" || -z "$patch_sha256" ]]; then
