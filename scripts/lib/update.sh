@@ -147,6 +147,31 @@ ensure_path() {
     fi
 }
 
+update_has_nvm_node() {
+    compgen -G "$HOME/.nvm/versions/node/*/bin/node" >/dev/null 2>&1
+}
+
+update_ensure_gemini_patch_node() {
+    if update_has_nvm_node; then
+        return 0
+    fi
+
+    update_run_verified_installer nvm || return 1
+
+    export NVM_DIR="$HOME/.nvm"
+    if [[ ! -s "$NVM_DIR/nvm.sh" ]]; then
+        echo "nvm.sh not found at $NVM_DIR/nvm.sh" >&2
+        return 1
+    fi
+
+    # shellcheck disable=SC1090
+    . "$NVM_DIR/nvm.sh"
+    nvm install node
+    nvm alias default node
+
+    update_has_nvm_node
+}
+
 is_expected_acfs_origin_url() {
     local url="$1"
     local normalized="$url"
@@ -1966,6 +1991,7 @@ update_agents() {
             [[ "$QUIET" != "true" ]] && printf "       ${DIM}%s → %s${NC}\n" "${VERSION_BEFORE[gemini]}" "${VERSION_AFTER[gemini]}"
         fi
         # Apply Gemini CLI patches (EBADF crash fix, rate-limit retry, quota retry)
+        run_cmd "Node.js runtime for Gemini patch" update_ensure_gemini_patch_node
         run_cmd "Gemini CLI patches" update_run_verified_installer gemini_patch
     else
         log_item "skip" "Gemini CLI" "not installed (use --force to install)"

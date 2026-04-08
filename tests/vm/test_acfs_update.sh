@@ -472,7 +472,16 @@ run_one() {
             # Run ACFS installer
             echo "Installing ACFS..."
             cd /repo
-            ACFS_CI=true CARGO_BUILD_JOBS=1 bash install.sh --yes --mode vibe --skip-ubuntu-upgrade
+            install_log=/tmp/acfs-install.log
+            ACFS_CI=true CARGO_BUILD_JOBS=1 bash install.sh --yes --mode vibe --skip-ubuntu-upgrade 2>&1 | tee "$install_log"
+            if grep -q "node is required but not found (bun's node wrapper is not compatible)" "$install_log"; then
+                echo "ERROR: installer still emitted the Gemini patch missing-node warning" >&2
+                exit 1
+            fi
+            if grep -q "Gemini CLI patch step failed" "$install_log"; then
+                echo "ERROR: installer still reported Gemini patch failure" >&2
+                exit 1
+            fi
 
             # Verify the direct installed wrapper does not short-circuit owner
             # handoff before state discovery, even if root has stale state.

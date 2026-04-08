@@ -118,6 +118,62 @@ _agent_create_bun_wrapper() {
     return 0
 }
 
+_agent_has_nvm_node() {
+    local target_user="${TARGET_USER:-ubuntu}"
+    local target_home="${TARGET_HOME:-/home/$target_user}"
+    compgen -G "$target_home/.nvm/versions/node/*/bin/node" >/dev/null 2>&1
+}
+
+_agent_ensure_nvm_node() {
+    local patch_tool="nvm"
+    local installer_url=""
+    local installer_sha=""
+
+    if _agent_has_nvm_node; then
+        return 0
+    fi
+
+    if [[ ! -f "$AGENTS_SCRIPT_DIR/security.sh" ]]; then
+        log_warn "security.sh unavailable; cannot prepare Node.js for Gemini patch"
+        return 1
+    fi
+
+    # shellcheck source=security.sh
+    source "$AGENTS_SCRIPT_DIR/security.sh"
+    if ! load_checksums; then
+        log_warn "Checksum metadata unavailable; cannot prepare Node.js for Gemini patch"
+        return 1
+    fi
+
+    installer_url="${KNOWN_INSTALLERS[$patch_tool]:-}"
+    installer_sha="$(get_checksum "$patch_tool")"
+    if [[ -z "$installer_url" || -z "$installer_sha" ]]; then
+        log_warn "nvm installer metadata unavailable; cannot prepare Node.js for Gemini patch"
+        return 1
+    fi
+
+    log_detail "Installing nvm + latest Node.js for Gemini patch compatibility..."
+    if ! _agent_run_as_user "source '$AGENTS_SCRIPT_DIR/security.sh'; verify_checksum '$installer_url' '$installer_sha' '$patch_tool' | bash -s --"; then
+        log_warn "nvm installer verification failed; cannot prepare Node.js for Gemini patch"
+        return 1
+    fi
+
+    if ! _agent_run_as_user 'set -euo pipefail
+        export NVM_DIR="$HOME/.nvm"
+        if [[ ! -s "$NVM_DIR/nvm.sh" ]]; then
+            echo "nvm.sh not found at $NVM_DIR/nvm.sh" >&2
+            exit 1
+        fi
+        . "$NVM_DIR/nvm.sh"
+        nvm install node
+        nvm alias default node'; then
+        log_warn "Failed to install latest Node.js via nvm for Gemini patch"
+        return 1
+    fi
+
+    _agent_has_nvm_node
+}
+
 _agent_apply_verified_gemini_patch() {
     local patch_tool="gemini_patch"
     local patch_url="https://raw.githubusercontent.com/Dicklesworthstone/misc_coding_agent_tips_and_scripts/main/fix-gemini-cli-ebadf-crash.sh"
@@ -134,6 +190,11 @@ _agent_apply_verified_gemini_patch() {
 
     if [[ -z "$patch_sha" ]]; then
         log_warn "Gemini patch checksum unavailable; skipping patch for safety"
+        return 1
+    fi
+
+    if ! _agent_ensure_nvm_node; then
+        log_warn "Node.js via nvm unavailable; skipping Gemini patch"
         return 1
     fi
 
