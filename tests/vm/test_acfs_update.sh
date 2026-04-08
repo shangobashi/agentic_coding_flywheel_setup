@@ -147,7 +147,51 @@ test_dry_run() {
     fi
 }
 
-# Test 3: --quiet mode
+# Test 3: Non-git installs do not bootstrap self-update implicitly
+test_self_update_guard() {
+    info "Testing non-git self-update guard"
+    local output
+    output=$(acfs-update --dry-run --yes 2>&1) || true
+
+    if echo "$output" | grep -q "not a git checkout"; then
+        pass "Non-git installs skip ACFS self-update by default"
+    else
+        fail "Non-git self-update guard message missing"
+    fi
+
+    if [[ ! -d "$HOME/.acfs/.git" ]]; then
+        pass "--dry-run did not create ~/.acfs/.git"
+    else
+        fail "--dry-run unexpectedly created ~/.acfs/.git"
+    fi
+}
+
+# Test 4: Required deployed support assets are present
+test_deployed_assets() {
+    info "Testing deployed ACFS support assets"
+
+    local -a required_files=(
+        "$HOME/.acfs/scripts/lib/contract.sh"
+        "$HOME/.acfs/scripts/lib/nightly_update.sh"
+        "$HOME/.acfs/scripts/nightly-update.sh"
+        "$HOME/.acfs/scripts/templates/acfs-nightly-update.service"
+        "$HOME/.acfs/scripts/templates/acfs-nightly-update.timer"
+    )
+
+    local missing=()
+    local path=""
+    for path in "${required_files[@]}"; do
+        [[ -f "$path" ]] || missing+=("$path")
+    done
+
+    if [[ ${#missing[@]} -eq 0 ]]; then
+        pass "ACFS deployed support assets are present"
+    else
+        fail "Missing deployed support assets" "${missing[*]}"
+    fi
+}
+
+# Test 5: --quiet mode
 test_quiet() {
     info "Testing --quiet mode"
     local output
@@ -163,7 +207,7 @@ test_quiet() {
     fi
 }
 
-# Test 4: --agents-only category filter
+# Test 6: --agents-only category filter
 test_agents_only() {
     info "Testing --agents-only filter"
     local output
@@ -184,7 +228,7 @@ test_agents_only() {
     fi
 }
 
-# Test 5: --no-apt skip filter
+# Test 7: --no-apt skip filter
 test_no_apt() {
     info "Testing --no-apt filter"
     local output
@@ -203,7 +247,7 @@ test_no_apt() {
     fi
 }
 
-# Test 6: Log file creation
+# Test 8: Log file creation
 test_logging() {
     info "Testing log file creation"
 
@@ -237,7 +281,7 @@ test_logging() {
     fi
 }
 
-# Test 7: Missing tool graceful handling
+# Test 9: Missing tool graceful handling
 test_missing_tools() {
     info "Testing missing tool handling"
 
@@ -253,7 +297,7 @@ test_missing_tools() {
     fi
 }
 
-# Test 8: Exit codes
+# Test 10: Exit codes
 test_exit_codes() {
     info "Testing exit codes"
 
@@ -265,7 +309,7 @@ test_exit_codes() {
     fi
 }
 
-# Test 9: Shell tools section
+# Test 11: Shell tools section
 test_shell_only() {
     info "Testing --shell-only filter"
     local output
@@ -279,7 +323,7 @@ test_shell_only() {
     fi
 }
 
-# Test 10: Version display
+# Test 12: Version display
 test_version_display() {
     info "Testing version display"
     local output
@@ -292,7 +336,7 @@ test_version_display() {
     fi
 }
 
-# Test 11: DCG update verification
+# Test 13: DCG update verification
 test_dcg_update() {
     info "Testing DCG update verification"
 
@@ -367,6 +411,8 @@ main() {
 
     test_help
     test_dry_run
+    test_self_update_guard
+    test_deployed_assets
     test_quiet
     test_agents_only
     test_no_apt
@@ -423,7 +469,7 @@ run_one() {
             # Run ACFS installer
             echo "Installing ACFS..."
             cd /repo
-            bash install.sh --yes --mode vibe
+            ACFS_CI=true bash install.sh --yes --mode vibe
 
             # Verify the direct installed wrapper does not short-circuit owner
             # handoff before state discovery, even if root has stale state.

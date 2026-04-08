@@ -37,6 +37,42 @@ P10K_REPO="https://github.com/romkatv/powerlevel10k.git"
 ZSH_AUTOSUGGESTIONS_REPO="https://github.com/zsh-users/zsh-autosuggestions"
 ZSH_SYNTAX_HIGHLIGHTING_REPO="https://github.com/zsh-users/zsh-syntax-highlighting.git"
 
+zsh_get_local_passwd_entry() {
+    local user="${1:-}"
+    [[ -n "$user" ]] || return 1
+    [[ -r /etc/passwd ]] || return 1
+    awk -F: -v user="$user" '$1 == user { print $0; exit }' /etc/passwd 2>/dev/null
+}
+
+zsh_is_externally_managed_user() {
+    local user="${1:-}"
+    local passwd_entry=""
+    local local_entry=""
+
+    [[ -n "$user" ]] || return 1
+    passwd_entry="$(getent passwd "$user" 2>/dev/null || true)"
+    [[ -n "$passwd_entry" ]] || return 1
+
+    local_entry="$(zsh_get_local_passwd_entry "$user" || true)"
+    [[ -z "$local_entry" ]]
+}
+
+configure_external_shell_handoff() {
+    local bashrc="$HOME/.bashrc"
+
+    if grep -q 'ACFS externally-managed shell handoff' "$bashrc" 2>/dev/null; then
+        return 0
+    fi
+
+    cat >> "$bashrc" << 'EOF'
+# ACFS externally-managed shell handoff
+if [[ $- == *i* ]] && [[ -t 0 ]] && command -v zsh >/dev/null 2>&1 && [[ -z "${ACFS_ZSH_HANDOFF_ACTIVE:-}" ]]; then
+  export ACFS_ZSH_HANDOFF_ACTIVE=1
+  exec "$(command -v zsh)" -l
+fi
+EOF
+}
+
 # Load security helpers + checksums.yaml (fail closed if unavailable).
 ZSH_SECURITY_READY=false
 _zsh_require_security() {
@@ -212,8 +248,13 @@ set_zsh_default() {
         return 0
     fi
 
-    log_detail "Setting zsh as default shell..."
-    $SUDO chsh -s "$zsh_path" "$(whoami)"
+    if zsh_is_externally_managed_user "$(whoami)"; then
+        log_warn "Shell is managed outside /etc/passwd; installing a bash-to-zsh handoff instead of using chsh"
+        configure_external_shell_handoff
+    else
+        log_detail "Setting zsh as default shell..."
+        $SUDO chsh -s "$zsh_path" "$(whoami)"
+    fi
 
     log_success "Default shell set to zsh"
 }

@@ -1288,7 +1288,7 @@ function generateDoctorChecks(manifest: Manifest): string {
   lines.push('                return $?');
   lines.push('            fi');
   lines.push('            if command -v sudo >/dev/null 2>&1; then');
-  lines.push('                sudo -n env PATH="${PATH:-/usr/local/bin:/usr/bin:/bin}" bash -o pipefail -c "$cmd"');
+  lines.push('                sudo -n env TARGET_USER="$target_user" TARGET_HOME="$target_home" PATH="${PATH:-/usr/local/bin:/usr/bin:/bin}" bash -o pipefail -c "$cmd"');
   lines.push('                return $?');
   lines.push('            fi');
   lines.push('            return 1');

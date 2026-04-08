@@ -43,7 +43,8 @@ _acfs_discover_repo_root() {
         fi
     done
 
-    # Fallback: use script-relative root (triggers bootstrap in update_acfs_self)
+    # Fallback: use script-relative root. If this is not a git checkout,
+    # self-update is skipped unless the caller explicitly opts into bootstrap.
     printf '%s\n' "$script_root"
 }
 ACFS_REPO_ROOT="$(_acfs_discover_repo_root)"
@@ -100,6 +101,7 @@ UPDATE_RUNTIME=true
 UPDATE_STACK=true
 UPDATE_SHELL=true
 UPDATE_SELF=true
+BOOTSTRAP_SELF_UPDATE=false
 FORCE_MODE=false
 DRY_RUN=false
 VERBOSE=false
@@ -385,6 +387,8 @@ log_item() {
             [[ -n "$details" && "$QUIET" != "true" ]] && printf "       ${DIM}%s${NC}\n" "$details"
             ;;
     esac
+
+    return 0
 }
 
 run_cmd() {
@@ -860,7 +864,12 @@ sync_acfs_deployed() {
     local -a file_pairs=(
         # repo-relative-path : deployed-relative-path
         "scripts/lib/update.sh:scripts/lib/update.sh"
+        "scripts/lib/contract.sh:scripts/lib/contract.sh"
+        "scripts/lib/nightly_update.sh:scripts/lib/nightly_update.sh"
+        "scripts/lib/nightly_update.sh:scripts/nightly-update.sh"
         "scripts/lib/security.sh:scripts/lib/security.sh"
+        "scripts/templates/acfs-nightly-update.service:scripts/templates/acfs-nightly-update.service"
+        "scripts/templates/acfs-nightly-update.timer:scripts/templates/acfs-nightly-update.timer"
         "checksums.yaml:checksums.yaml"
         "acfs/zsh/acfs.zshrc:zsh/acfs.zshrc"
         "acfs/zsh/p10k.zsh:zsh/p10k.zsh"
@@ -1278,6 +1287,10 @@ update_acfs_self() {
 
     # Recovery for orphaned git init (issue #200)
     if [[ -d "$ACFS_REPO_ROOT/.git" ]] && ! git -C "$ACFS_REPO_ROOT" rev-parse HEAD &>/dev/null; then
+        if [[ "$DRY_RUN" == "true" ]]; then
+            log_item "ok" "ACFS self-update" "would recover incomplete git bootstrap"
+            return 0
+        fi
         log_to_file "Detected incomplete git bootstrap — attempting recovery..."
         local actual_origin
         actual_origin=$(git -C "$ACFS_REPO_ROOT" remote get-url origin 2>/dev/null || true)
@@ -1300,9 +1313,21 @@ update_acfs_self() {
     fi
 
     # Check if ACFS repo exists and is a git repo.
-    # If installed via tarball (no .git dir), bootstrap a git repo so
-    # the existing pull-based self-update logic works on subsequent runs.
+    # If installed via tarball (no .git dir), require an explicit opt-in before
+    # converting the install into a git checkout. Automatic bootstrap can
+    # overwrite local files under ~/.acfs, which is too surprising for routine
+    # update and nightly flows.
     if [[ ! -d "$ACFS_REPO_ROOT/.git" ]]; then
+        if [[ "$BOOTSTRAP_SELF_UPDATE" != "true" ]]; then
+            log_item "skip" "ACFS self-update" "installed tree is not a git checkout; skipping to avoid overwriting local files (use --bootstrap-self-update to opt in)"
+            return 0
+        fi
+
+        if [[ "$DRY_RUN" == "true" ]]; then
+            log_item "ok" "ACFS self-update" "would bootstrap git checkout from https://github.com/${ACFS_REPO_OWNER}/${ACFS_REPO_NAME}.git"
+            return 0
+        fi
+
         log_to_file "No .git directory found at $ACFS_REPO_ROOT — bootstrapping git repo for self-update..."
 
         # Check if git is available before attempting bootstrap
@@ -1497,12 +1522,11 @@ update_acfs_self() {
 }
 
 update_apt() {
-    log_section "System Packages (apt)"
-
     if [[ "$UPDATE_APT" != "true" ]]; then
-        log_item "skip" "apt update" "disabled via --no-apt"
         return 0
     fi
+
+    log_section "System Packages (apt)"
 
     # Check if apt/dpkg is available (Linux only)
     if ! command -v apt-get &>/dev/null; then
@@ -1743,12 +1767,11 @@ check_reboot_required() {
 }
 
 update_bun() {
-    log_section "Bun Runtime"
-
     if [[ "$UPDATE_RUNTIME" != "true" ]]; then
-        log_item "skip" "Bun" "disabled via --no-runtime / category selection"
         return 0
     fi
+
+    log_section "Bun Runtime"
 
     local bun_bin="$HOME/.bun/bin/bun"
 
@@ -1769,12 +1792,11 @@ update_bun() {
 }
 
 update_agents() {
-    log_section "Coding Agents"
-
     if [[ "$UPDATE_AGENTS" != "true" ]]; then
-        log_item "skip" "agents update" "disabled via --no-agents"
         return 0
     fi
+
+    log_section "Coding Agents"
 
     # Claude Code - can update without bun; supports install/reinstall with --force.
     #
@@ -2123,12 +2145,11 @@ EOF
 }
 
 update_cloud() {
-    log_section "Cloud CLIs"
-
     if [[ "$UPDATE_CLOUD" != "true" ]]; then
-        log_item "skip" "cloud CLIs update" "disabled via --no-cloud"
         return 0
     fi
+
+    log_section "Cloud CLIs"
 
     local bun_bin="$HOME/.bun/bin/bun"
     local has_bun=false
@@ -2203,12 +2224,11 @@ update_cloud() {
 }
 
 update_rust() {
-    log_section "Rust Toolchain"
-
     if [[ "$UPDATE_RUNTIME" != "true" ]]; then
-        log_item "skip" "Rust" "disabled via --no-runtime / category selection"
         return 0
     fi
+
+    log_section "Rust Toolchain"
 
     local rustup_bin="$HOME/.cargo/bin/rustup"
 
@@ -2243,12 +2263,11 @@ update_rust() {
 }
 
 update_cargo_tools() {
-    log_section "Cargo Tools"
-
     if [[ "$UPDATE_RUNTIME" != "true" ]]; then
-        log_item "skip" "Cargo tools" "disabled via --no-runtime / category selection"
         return 0
     fi
+
+    log_section "Cargo Tools"
 
     local cargo_bin="$HOME/.cargo/bin/cargo"
     if [[ ! -x "$cargo_bin" ]]; then
@@ -2281,12 +2300,11 @@ update_cargo_tools() {
 }
 
 update_uv() {
-    log_section "Python Tools (uv)"
-
     if [[ "$UPDATE_RUNTIME" != "true" ]]; then
-        log_item "skip" "uv" "disabled via --no-runtime / category selection"
         return 0
     fi
+
+    log_section "Python Tools (uv)"
 
     local uv_bin="${ACFS_BIN_DIR:-$HOME/.local/bin}/uv"
 
@@ -2307,12 +2325,11 @@ update_uv() {
 }
 
 update_go() {
-    log_section "Go Runtime"
-
     if [[ "$UPDATE_RUNTIME" != "true" ]]; then
-        log_item "skip" "Go" "disabled via --no-runtime / category selection"
         return 0
     fi
+
+    log_section "Go Runtime"
 
     # Check if go is installed
     if ! command -v go &>/dev/null; then
@@ -2351,12 +2368,11 @@ update_go() {
 }
 
 update_stack() {
-    log_section "Dicklesworthstone Stack"
-
     if [[ "$UPDATE_STACK" != "true" ]]; then
-        log_item "skip" "stack update" "disabled via --no-stack"
         return 0
     fi
+
+    log_section "Dicklesworthstone Stack"
 
     if ! update_require_security; then
         log_item "fail" "stack updates" "security verification unavailable (missing security.sh/checksums.yaml)"
@@ -2994,12 +3010,11 @@ update_zoxide() {
 
 # Main shell update dispatcher
 update_shell() {
-    log_section "Shell Tools"
-
     if [[ "$UPDATE_SHELL" != "true" ]]; then
-        log_item "skip" "shell tools update" "disabled via --no-shell"
         return 0
     fi
+
+    log_section "Shell Tools"
 
     # Git-based updates (OMZ, P10K, plugins)
     update_omz
@@ -3101,7 +3116,7 @@ CATEGORY OPTIONS (select what to update):
   --stack            Include Dicklesworthstone stack tools (enabled by default)
 
 SKIP OPTIONS (exclude categories from update):
-  --no-self-update   Skip ACFS self-update (not recommended)
+  --no-self-update   Skip ACFS self-update
   --no-apt           Skip apt update/upgrade
   --no-agents        Skip coding agent updates
   --no-cloud         Skip cloud CLI updates
@@ -3110,6 +3125,8 @@ SKIP OPTIONS (exclude categories from update):
   --no-stack         Skip Dicklesworthstone stack tool updates
 
 BEHAVIOR OPTIONS:
+  --bootstrap-self-update
+                     Convert a non-git ACFS install into a git checkout before self-update
   --force            Force reinstallation even if already up to date
   --dry-run          Preview changes without making them
   --yes, -y          Non-interactive mode, skip all prompts
@@ -3144,12 +3161,16 @@ EXAMPLES:
   # Automated CI/cron mode
   acfs-update --yes --quiet
 
+  # Explicitly convert a tarball install into a git checkout for self-updates
+  acfs-update --bootstrap-self-update
+
   # Strict mode: stop on first error
   acfs-update --abort-on-failure
 
 WHAT EACH CATEGORY UPDATES:
   self:     ACFS itself (git pull) - runs FIRST to ensure latest update logic
             If update.sh changes, automatically re-executes with new version
+            Tarball/non-git installs skip this unless --bootstrap-self-update is used
   apt:      System packages via apt update && apt upgrade && apt autoremove
   shell:    Oh-My-Zsh, Powerlevel10k, zsh plugins (git pull)
             Atuin, Zoxide (reinstall from upstream)
@@ -3299,6 +3320,10 @@ main() {
                 ;;
             --no-self-update)
                 UPDATE_SELF=false
+                shift
+                ;;
+            --bootstrap-self-update)
+                BOOTSTRAP_SELF_UPDATE=true
                 shift
                 ;;
             --force)

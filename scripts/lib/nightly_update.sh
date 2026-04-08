@@ -9,7 +9,7 @@
 #   1. Load average - skip if system is overloaded
 #   2. Disk space   - skip if critically low (<2GB)
 #   3. Low-risk cleanup if disk is tight (<5GB)
-#   4. Run acfs-update --yes --quiet
+#   4. Run acfs-update --yes --quiet --no-self-update by default
 #
 # Logs to: ~/.acfs/logs/updates/nightly-YYYY-MM-DD-HHMMSS.log
 # ============================================================
@@ -140,12 +140,20 @@ if [[ -z "$ACFS_UPDATE" ]]; then
     exit 1
 fi
 
-log "Running: $ACFS_UPDATE --yes --quiet"
+# By default, nightly updates skip ACFS self-update because many machines run
+# from a deployed ~/.acfs tree instead of a git checkout. Opt in by setting
+# ACFS_NIGHTLY_SELF_UPDATE=true in a systemd override or the unit environment.
+NIGHTLY_UPDATE_ARGS=(--yes --quiet)
+if [[ "${ACFS_NIGHTLY_SELF_UPDATE:-false}" != "true" ]]; then
+    NIGHTLY_UPDATE_ARGS+=(--no-self-update)
+fi
+
+log "Running: $ACFS_UPDATE ${NIGHTLY_UPDATE_ARGS[*]}"
 log "---"
 
 # Run update; capture exit code but don't fail the whole script
 set +e
-"$ACFS_UPDATE" --yes --quiet
+"$ACFS_UPDATE" "${NIGHTLY_UPDATE_ARGS[@]}"
 UPDATE_RC=$?
 set -e
 

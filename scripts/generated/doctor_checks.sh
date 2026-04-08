@@ -200,8 +200,8 @@ declare -a MANIFEST_CHECKS=(
     "utils.rust_proxy	rust_proxy - Transparent proxy routing for debugging network traffic	rust_proxy --help || rust_proxy --version	optional	target_user"
     "utils.aadc	aadc - ASCII diagram corrector for fixing malformed ASCII art	aadc --help || aadc --version	optional	target_user"
     "utils.caut	coding_agent_usage_tracker (caut) - LLM provider usage tracker	caut --help || caut --version	optional	target_user"
-    "acfs.workspace.1	Agent workspace with tmux session and project folder	test -d /data/projects/my_first_project	required	target_user"
-    "acfs.workspace.2	Agent workspace with tmux session and project folder	grep -q \"alias agents=\" ~/.zshrc.local || grep -q \"alias agents=\" ~/.zshrc	required	target_user"
+    "acfs.workspace.1	Agent workspace with tmux session and project folder	test -d /data/projects/my_first_project	optional	target_user"
+    "acfs.workspace.2	Agent workspace with tmux session and project folder	grep -q \"alias agents=\" ~/.zshrc.local || grep -q \"alias agents=\" ~/.zshrc	optional	target_user"
     "acfs.onboard	Onboarding TUI tutorial	onboard --help || command -v onboard	required	target_user"
     "acfs.update	ACFS update command wrapper	command -v acfs-update	required	target_user"
     "acfs.nightly	Nightly auto-update timer (systemd)	systemctl --user is-enabled acfs-nightly-update.timer	optional	target_user"
@@ -248,7 +248,7 @@ run_manifest_check_command() {
                 return $?
             fi
             if command -v sudo >/dev/null 2>&1; then
-                sudo -n env PATH="${PATH:-/usr/local/bin:/usr/bin:/bin}" bash -o pipefail -c "$cmd"
+                sudo -n env TARGET_USER="$target_user" TARGET_HOME="$target_home" PATH="${PATH:-/usr/local/bin:/usr/bin:/bin}" bash -o pipefail -c "$cmd"
                 return $?
             fi
             return 1

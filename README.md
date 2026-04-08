@@ -602,12 +602,14 @@ After installation, keeping tools current is handled by `acfs-update`. It provid
 ### Usage
 
 ```bash
-acfs-update                  # Update apt, runtimes, shell, agents, and cloud CLIs
-acfs-update --stack          # Include Dicklesworthstone stack tools
+acfs-update                  # Update apt, runtimes, shell, agents, cloud CLIs, and stack tools
 acfs-update --agents-only    # Only update coding agents
 acfs-update --runtime-only   # Only update runtimes (bun, rust, uv, go)
 acfs-update --dry-run        # Preview changes without making them
-acfs-update --yes --quiet    # Automated/CI mode with minimal output
+acfs-update --yes --quiet --no-self-update
+                             # Automated mode that avoids changing the ACFS tree itself
+acfs-update --bootstrap-self-update
+                             # Explicitly convert a non-git ACFS install into a git checkout
 ```
 
 ### What Gets Updated

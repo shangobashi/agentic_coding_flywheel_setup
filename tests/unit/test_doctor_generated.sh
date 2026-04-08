@@ -257,9 +257,11 @@ test_fix_hint_uses_module_id() {
     local output
     output=$(bash "$REPO_ROOT/scripts/lib/doctor.sh" --json 2>&1)
 
-    # Sample a few checks and verify fix hints reference their module
+    # Sample a few installer-backed checks and verify fix hints reference
+    # their module. Some modules intentionally return bespoke prose guidance
+    # instead of an ACFS reinstall command, so skip those here.
     local samples
-    samples=$(echo "$output" | jq -r '.checks[] | select(.fix and .id) | "\(.id)|\(.fix)"' 2>/dev/null | head -5)
+    samples=$(echo "$output" | jq -r '.checks[] | select(.fix and .id and (.fix | contains("agent-flywheel.com/install"))) | "\(.id)|\(.fix)"' 2>/dev/null | head -5)
 
     local checks_passed=0
     local checks_total=0
@@ -352,6 +354,56 @@ test_doctor_summary_counts() {
         harness_pass "Fail count matches: $fail_count"
     else
         harness_fail "Fail count mismatch: summary=$fail_count calculated=$calc_fail"
+    fi
+}
+
+test_root_checks_preserve_target_context() {
+    harness_section "Test: Root manifest checks preserve target context"
+
+    local doctor_file checks_file
+    doctor_file="$REPO_ROOT/scripts/lib/doctor.sh"
+    checks_file="$REPO_ROOT/scripts/generated/doctor_checks.sh"
+
+    if grep -Fq 'TARGET_USER="$target_user"' "$doctor_file" && grep -Fq 'TARGET_HOME="$target_home"' "$doctor_file"; then
+        harness_pass "doctor.sh preserves TARGET_USER and TARGET_HOME for root checks"
+    else
+        harness_fail "doctor.sh does not preserve TARGET_USER and TARGET_HOME for root checks"
+    fi
+
+    if grep -Fq 'TARGET_USER="$target_user"' "$checks_file" && grep -Fq 'TARGET_HOME="$target_home"' "$checks_file"; then
+        harness_pass "generated doctor_checks.sh preserves TARGET_USER and TARGET_HOME for root checks"
+    else
+        harness_fail "generated doctor_checks.sh does not preserve TARGET_USER and TARGET_HOME for root checks"
+    fi
+}
+
+test_workspace_checks_are_not_required_health_failures() {
+    harness_section "Test: Workspace onboarding checks are not required health failures"
+
+    local doctor_file checks_file output
+    doctor_file="$REPO_ROOT/scripts/lib/doctor.sh"
+    checks_file="$REPO_ROOT/scripts/generated/doctor_checks.sh"
+
+    if grep -Eq 'acfs\.workspace\|acfs\.workspace\.\*' "$doctor_file"; then
+        harness_pass "doctor.sh suppresses manifest duplicates for acfs.workspace"
+    else
+        harness_fail "doctor.sh does not suppress manifest duplicates for acfs.workspace"
+    fi
+
+    if grep -F 'acfs.workspace.1' "$checks_file" | grep -Fq $'\toptional\t'; then
+        harness_pass "generated acfs.workspace checks are optional"
+    else
+        harness_fail "generated acfs.workspace checks are still required"
+    fi
+
+    output=$(bash "$REPO_ROOT/scripts/lib/doctor.sh" --json 2>&1)
+    local workspace_check_count
+    workspace_check_count=$(echo "$output" | jq '[.checks[] | select(.id | startswith("acfs.workspace"))] | length' 2>/dev/null || echo "0")
+    if [[ "$workspace_check_count" -eq 0 ]]; then
+        harness_pass "doctor output no longer surfaces acfs.workspace onboarding checks"
+    else
+        harness_fail "doctor output still surfaces acfs.workspace onboarding checks"
+        harness_capture_output "doctor_json_output" "$output"
     fi
 }
 
@@ -462,6 +514,8 @@ main() {
     test_fix_hint_uses_module_id
     test_manifest_checks_have_required_fields
     test_doctor_summary_counts
+    test_root_checks_preserve_target_context
+    test_workspace_checks_are_not_required_health_failures
     test_meta_skill_arm64_linux_guidance
     test_manifest_supplemental_coverage_is_precise
     test_manifest_guard_scripts_cover_all_generated_outputs

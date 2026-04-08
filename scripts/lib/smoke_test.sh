@@ -32,6 +32,32 @@ if [[ -z "${TARGET_HOME:-}" ]]; then
     fi
 fi
 
+_smoke_get_local_passwd_entry() {
+    local user="${1:-}"
+    [[ -n "$user" ]] || return 1
+    [[ -r /etc/passwd ]] || return 1
+    awk -F: -v user="$user" '$1 == user { print $0; exit }' /etc/passwd 2>/dev/null
+}
+
+_smoke_is_externally_managed_user() {
+    local user="${1:-}"
+    local passwd_entry=""
+    local local_entry=""
+
+    [[ -n "$user" ]] || return 1
+    passwd_entry="$(getent passwd "$user" 2>/dev/null || true)"
+    [[ -n "$passwd_entry" ]] || return 1
+
+    local_entry="$(_smoke_get_local_passwd_entry "$user" || true)"
+    [[ -z "$local_entry" ]]
+}
+
+_smoke_external_shell_handoff_configured() {
+    local target_home="${1:-}"
+    [[ -n "$target_home" ]] || return 1
+    grep -q 'ACFS externally-managed shell handoff' "$target_home/.bashrc" 2>/dev/null
+}
+
 # ============================================================
 # Output Helpers
 # ============================================================
@@ -101,6 +127,14 @@ _check_shell() {
     # Check if configured shell is zsh (the actual login shell, not just that zsh exists)
     if [[ "$shell" == *"zsh"* ]]; then
         _smoke_pass "Shell: zsh"
+        return 0
+    elif _smoke_is_externally_managed_user "$TARGET_USER"; then
+        if _smoke_external_shell_handoff_configured "$TARGET_HOME"; then
+            _smoke_pass "Shell: externally managed login hands off to zsh"
+        else
+            _smoke_warn "Shell: externally managed account reports ${shell:-unknown}" \
+                "Local chsh is not valid here; configure the identity provider shell or add the ACFS bash-to-zsh handoff."
+        fi
         return 0
     else
         _smoke_fail "Shell: expected zsh, got $shell" "chsh -s \$(which zsh)"

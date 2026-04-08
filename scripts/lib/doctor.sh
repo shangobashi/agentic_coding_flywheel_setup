@@ -147,9 +147,6 @@ if [[ -z "${TARGET_USER:-}" ]]; then
         [[ -n "${TARGET_USER:-}" ]] && break
     done
 fi
-unset _acfs_doctor_state_files
-unset _acfs_doctor_state_file
-unset _acfs_doctor_installed_state
 if [[ -z "${TARGET_USER:-}" ]]; then
     _acfs_current_user="$(id -un 2>/dev/null || whoami 2>/dev/null || true)"
     if [[ -n "$_acfs_current_user" ]] && [[ "$_acfs_current_user" != "root" ]]; then
@@ -161,7 +158,51 @@ TARGET_USER="${TARGET_USER:-ubuntu}"
 if [[ ! "$TARGET_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
     TARGET_USER="ubuntu"
 fi
+
+TARGET_HOME="${TARGET_HOME:-}"
+if [[ -z "${TARGET_HOME:-}" ]]; then
+    for _acfs_doctor_state_file in "${_acfs_doctor_state_files[@]}"; do
+        [[ -f "$_acfs_doctor_state_file" ]] || continue
+        if command -v jq &>/dev/null; then
+            TARGET_HOME="$(jq -r '.target_home // empty' "$_acfs_doctor_state_file" 2>/dev/null || true)"
+        fi
+        if [[ -z "${TARGET_HOME:-}" ]]; then
+            TARGET_HOME="$(sed -n 's/.*"target_home"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$_acfs_doctor_state_file" | head -n 1)"
+        fi
+        [[ -n "${TARGET_HOME:-}" ]] && break
+    done
+fi
+
+unset _acfs_doctor_state_files
+unset _acfs_doctor_state_file
+unset _acfs_doctor_installed_state
+
+if [[ -z "${TARGET_HOME:-}" ]]; then
+    _acfs_passwd_entry="$(getent passwd "$TARGET_USER" 2>/dev/null || true)"
+    if [[ -n "$_acfs_passwd_entry" ]]; then
+        TARGET_HOME="$(printf '%s\n' "$_acfs_passwd_entry" | cut -d: -f6)"
+    elif [[ "$TARGET_USER" == "root" ]]; then
+        TARGET_HOME="/root"
+    elif [[ "$TARGET_USER" == "$(id -un 2>/dev/null || true)" ]] && [[ -n "${HOME:-}" ]]; then
+        TARGET_HOME="$HOME"
+    else
+        TARGET_HOME="/home/$TARGET_USER"
+    fi
+    unset _acfs_passwd_entry
+fi
+
+if [[ "$TARGET_HOME" != /* ]]; then
+    if [[ "$TARGET_USER" == "root" ]]; then
+        TARGET_HOME="/root"
+    elif [[ -n "${HOME:-}" ]] && [[ "$TARGET_USER" == "$(id -un 2>/dev/null || true)" ]]; then
+        TARGET_HOME="$HOME"
+    else
+        TARGET_HOME="/home/$TARGET_USER"
+    fi
+fi
+
 export TARGET_USER
+export TARGET_HOME
 
 _acfs_doctor_source_first "gum_ui.sh" || true
 
@@ -1739,6 +1780,7 @@ _is_bespoke_covered() {
         users.ubuntu|users.ubuntu.*) return 0 ;;
         # check_workspace
         base.filesystem.[12]) return 0 ;;
+        acfs.workspace|acfs.workspace.*) return 0 ;;
         # check_shell
         shell|shell.*) return 0 ;;
         # check_core_tools  (cli.modern.* maps to rg, tmux, fzf, gh, etc.)
@@ -1822,7 +1864,11 @@ _doctor_run_manifest_check() {
                 return $?
             fi
             if command -v sudo >/dev/null 2>&1; then
-                sudo -n env PATH="${PATH:-/usr/local/bin:/usr/bin:/bin}" bash -o pipefail -c "$cmd"
+                sudo -n env \
+                    TARGET_USER="$target_user" \
+                    TARGET_HOME="$target_home" \
+                    PATH="${PATH:-/usr/local/bin:/usr/bin:/bin}" \
+                    bash -o pipefail -c "$cmd"
                 return $?
             fi
             return 1

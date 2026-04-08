@@ -119,8 +119,13 @@ cd /data/projects/my_first_project
 git init 2>/dev/null || true
 INSTALL_ACFS_WORKSPACE
         then
-            log_error "acfs.workspace: install command failed: mkdir -p /data/projects/my_first_project"
-            return 1
+            log_warn "acfs.workspace: install command failed: mkdir -p /data/projects/my_first_project"
+            if type -t record_skipped_tool >/dev/null 2>&1; then
+              record_skipped_tool "acfs.workspace" "install command failed: mkdir -p /data/projects/my_first_project"
+            elif type -t state_tool_skip >/dev/null 2>&1; then
+              state_tool_skip "acfs.workspace"
+            fi
+            return 0
         fi
     fi
     if [[ "${DRY_RUN:-false}" = "true" ]]; then
@@ -158,8 +163,13 @@ printf '%s\n' "" \
   "" > ~/.acfs/workspace-instructions.txt
 INSTALL_ACFS_WORKSPACE
         then
-            log_error "acfs.workspace: install command failed: mkdir -p ~/.acfs"
-            return 1
+            log_warn "acfs.workspace: install command failed: mkdir -p ~/.acfs"
+            if type -t record_skipped_tool >/dev/null 2>&1; then
+              record_skipped_tool "acfs.workspace" "install command failed: mkdir -p ~/.acfs"
+            elif type -t state_tool_skip >/dev/null 2>&1; then
+              state_tool_skip "acfs.workspace"
+            fi
+            return 0
         fi
     fi
     if [[ "${DRY_RUN:-false}" = "true" ]]; then
@@ -185,8 +195,13 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
 fi
 INSTALL_ACFS_WORKSPACE
         then
-            log_error "acfs.workspace: install command failed: if ! tmux has-session -t \"\$SESSION_NAME\" 2>/dev/null; then"
-            return 1
+            log_warn "acfs.workspace: install command failed: if ! tmux has-session -t \"\$SESSION_NAME\" 2>/dev/null; then"
+            if type -t record_skipped_tool >/dev/null 2>&1; then
+              record_skipped_tool "acfs.workspace" "install command failed: if ! tmux has-session -t \"\$SESSION_NAME\" 2>/dev/null; then"
+            elif type -t state_tool_skip >/dev/null 2>&1; then
+              state_tool_skip "acfs.workspace"
+            fi
+            return 0
         fi
     fi
     if [[ "${DRY_RUN:-false}" = "true" ]]; then
@@ -202,8 +217,13 @@ if [[ ! -f ~/.zshrc.local ]] || ! grep -q "alias agents=" ~/.zshrc.local; then
 fi
 INSTALL_ACFS_WORKSPACE
         then
-            log_error "acfs.workspace: install command failed: if [[ ! -f ~/.zshrc.local ]] || ! grep -q \"alias agents=\" ~/.zshrc.local; then"
-            return 1
+            log_warn "acfs.workspace: install command failed: if [[ ! -f ~/.zshrc.local ]] || ! grep -q \"alias agents=\" ~/.zshrc.local; then"
+            if type -t record_skipped_tool >/dev/null 2>&1; then
+              record_skipped_tool "acfs.workspace" "install command failed: if [[ ! -f ~/.zshrc.local ]] || ! grep -q \"alias agents=\" ~/.zshrc.local; then"
+            elif type -t state_tool_skip >/dev/null 2>&1; then
+              state_tool_skip "acfs.workspace"
+            fi
+            return 0
         fi
     fi
 
@@ -215,8 +235,13 @@ INSTALL_ACFS_WORKSPACE
 test -d /data/projects/my_first_project
 INSTALL_ACFS_WORKSPACE
         then
-            log_error "acfs.workspace: verify failed: test -d /data/projects/my_first_project"
-            return 1
+            log_warn "acfs.workspace: verify failed: test -d /data/projects/my_first_project"
+            if type -t record_skipped_tool >/dev/null 2>&1; then
+              record_skipped_tool "acfs.workspace" "verify failed: test -d /data/projects/my_first_project"
+            elif type -t state_tool_skip >/dev/null 2>&1; then
+              state_tool_skip "acfs.workspace"
+            fi
+            return 0
         fi
     fi
     if [[ "${DRY_RUN:-false}" = "true" ]]; then
@@ -226,8 +251,13 @@ INSTALL_ACFS_WORKSPACE
 grep -q "alias agents=" ~/.zshrc.local || grep -q "alias agents=" ~/.zshrc
 INSTALL_ACFS_WORKSPACE
         then
-            log_error "acfs.workspace: verify failed: grep -q \"alias agents=\" ~/.zshrc.local || grep -q \"alias agents=\" ~/.zshrc"
-            return 1
+            log_warn "acfs.workspace: verify failed: grep -q \"alias agents=\" ~/.zshrc.local || grep -q \"alias agents=\" ~/.zshrc"
+            if type -t record_skipped_tool >/dev/null 2>&1; then
+              record_skipped_tool "acfs.workspace" "verify failed: grep -q \"alias agents=\" ~/.zshrc.local || grep -q \"alias agents=\" ~/.zshrc"
+            elif type -t state_tool_skip >/dev/null 2>&1; then
+              state_tool_skip "acfs.workspace"
+            fi
+            return 0
         fi
     fi
 

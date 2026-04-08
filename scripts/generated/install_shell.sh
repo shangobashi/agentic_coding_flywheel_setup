@@ -367,7 +367,23 @@ if [[ "$SHELL" != */zsh ]]; then
     echo "WARN: zsh not found; cannot set default shell automatically." >&2
     exit 0
   fi
-  if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+  passwd_entry="$(getent passwd "$(whoami)" 2>/dev/null || true)"
+  local_entry=""
+  if [[ -r /etc/passwd ]]; then
+    local_entry="$(awk -F: -v user="$(whoami)" '$1 == user { print $0; exit }' /etc/passwd 2>/dev/null || true)"
+  fi
+  if [[ -n "$passwd_entry" ]] && [[ -z "$local_entry" ]]; then
+    if ! grep -q 'ACFS externally-managed shell handoff' ~/.bashrc 2>/dev/null; then
+      {
+        echo '# ACFS externally-managed shell handoff'
+        echo 'if [[ $- == *i* ]] && [[ -t 0 ]] && command -v zsh >/dev/null 2>&1 && [[ -z "${ACFS_ZSH_HANDOFF_ACTIVE:-}" ]]; then'
+        echo '  export ACFS_ZSH_HANDOFF_ACTIVE=1'
+        echo '  exec "$(command -v zsh)" -l'
+        echo 'fi'
+      } >> ~/.bashrc
+    fi
+    echo "WARN: $(whoami) is managed outside /etc/passwd; installed a bash-to-zsh handoff instead of using chsh." >&2
+  elif command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
     sudo chsh -s "$zsh_path" "$(whoami)"
   else
     if [[ -t 0 ]]; then

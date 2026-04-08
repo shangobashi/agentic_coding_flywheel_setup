@@ -3594,6 +3594,55 @@ setup_filesystem() {
 # ============================================================
 # Phase 3: Shell setup (zsh + oh-my-zsh + p10k)
 # ============================================================
+acfs_get_local_passwd_entry() {
+    local user="${1:-}"
+    [[ -n "$user" ]] || return 1
+    [[ -r /etc/passwd ]] || return 1
+    awk -F: -v user="$user" '$1 == user { print $0; exit }' /etc/passwd 2>/dev/null
+}
+
+acfs_is_externally_managed_user() {
+    local user="${1:-}"
+    local passwd_entry=""
+    local local_entry=""
+
+    [[ -n "$user" ]] || return 1
+    passwd_entry="$(getent passwd "$user" 2>/dev/null || true)"
+    [[ -n "$passwd_entry" ]] || return 1
+
+    local_entry="$(acfs_get_local_passwd_entry "$user" || true)"
+    [[ -z "$local_entry" ]]
+}
+
+acfs_external_shell_handoff_configured() {
+    local target_home="${1:-}"
+    [[ -n "$target_home" ]] || return 1
+    grep -q 'ACFS externally-managed shell handoff' "$target_home/.bashrc" 2>/dev/null
+}
+
+acfs_configure_external_shell_handoff() {
+    local target_home="${1:-}"
+    local target_user="${2:-}"
+
+    [[ -n "$target_home" ]] || return 1
+    [[ -n "$target_user" ]] || return 1
+
+    if acfs_external_shell_handoff_configured "$target_home"; then
+        return 0
+    fi
+
+    cat >> "$target_home/.bashrc" << 'EOF'
+# ACFS externally-managed shell handoff
+if [[ $- == *i* ]] && [[ -t 0 ]] && command -v zsh >/dev/null 2>&1 && [[ -z "${ACFS_ZSH_HANDOFF_ACTIVE:-}" ]]; then
+    export ACFS_ZSH_HANDOFF_ACTIVE=1
+    exec "$(command -v zsh)" -l
+fi
+EOF
+
+    $SUDO chown "$target_user:$target_user" "$target_home/.bashrc" 2>/dev/null || true
+    return 0
+}
+
 setup_shell() {
     set_phase "shell_setup" "Shell Setup"
     log_step "3/9" "Setting up shell..."
@@ -3716,12 +3765,21 @@ EOF
     # Ensure correct ownership (handles edge case where file was created by root)
     [[ -f "$user_profile" ]] && $SUDO chown "$TARGET_USER:$TARGET_USER" "$user_profile" 2>/dev/null || true
 
-    # Set zsh as default shell for target user
+    # Set zsh as default shell for target user. Some environments expose user
+    # entries via NSS but do not allow local chsh updates, so fall back to an
+    # interactive bash-to-zsh handoff there.
     local current_shell
-    current_shell=$(getent passwd "$TARGET_USER" | cut -d: -f7)
-    if [[ "$current_shell" != *"zsh"* ]]; then
-        log_detail "Setting zsh as default shell for $TARGET_USER"
-        try_step "Setting zsh as default shell" $SUDO chsh -s "$(command -v zsh)" "$TARGET_USER" || true
+    local zsh_path
+    current_shell=$(getent passwd "$TARGET_USER" 2>/dev/null | cut -d: -f7 || true)
+    zsh_path="$(command -v zsh || true)"
+    if [[ -n "$zsh_path" ]] && [[ "$current_shell" != *"zsh"* ]]; then
+        if acfs_is_externally_managed_user "$TARGET_USER"; then
+            log_warn "Shell for $TARGET_USER is managed outside /etc/passwd; installing a bash-to-zsh handoff instead of using chsh"
+            try_step "Configuring bash-to-zsh handoff" acfs_configure_external_shell_handoff "$TARGET_HOME" "$TARGET_USER" || return 1
+        else
+            log_detail "Setting zsh as default shell for $TARGET_USER"
+            try_step "Setting zsh as default shell" $SUDO chsh -s "$zsh_path" "$TARGET_USER" || true
+        fi
     fi
 
     log_success "Shell setup complete"
@@ -5329,15 +5387,19 @@ finalize() {
     log_detail "Installing acfs scripts"
     try_step "Creating ACFS scripts directory" $SUDO mkdir -p "$ACFS_HOME/scripts/lib" || return 1
     try_step "Creating ACFS generated scripts directory" $SUDO mkdir -p "$ACFS_HOME/scripts/generated" || return 1
+    try_step "Creating ACFS templates directory" $SUDO mkdir -p "$ACFS_HOME/scripts/templates" || return 1
     
     # Install script libraries
     try_step "Installing logging.sh" install_asset "scripts/lib/logging.sh" "$ACFS_HOME/scripts/lib/logging.sh" || return 1
     try_step "Installing output.sh" install_asset "scripts/lib/output.sh" "$ACFS_HOME/scripts/lib/output.sh" || return 1
     try_step "Installing gum_ui.sh" install_asset "scripts/lib/gum_ui.sh" "$ACFS_HOME/scripts/lib/gum_ui.sh" || return 1
+    try_step "Installing contract.sh" install_asset "scripts/lib/contract.sh" "$ACFS_HOME/scripts/lib/contract.sh" || return 1
     try_step "Installing security.sh" install_asset "scripts/lib/security.sh" "$ACFS_HOME/scripts/lib/security.sh" || return 1
     try_step "Installing autofix.sh" install_asset "scripts/lib/autofix.sh" "$ACFS_HOME/scripts/lib/autofix.sh" || return 1
     try_step "Installing doctor_fix.sh" install_asset "scripts/lib/doctor_fix.sh" "$ACFS_HOME/scripts/lib/doctor_fix.sh" || return 1
     try_step "Installing doctor.sh" install_asset "scripts/lib/doctor.sh" "$ACFS_HOME/scripts/lib/doctor.sh" || return 1
+    try_step "Installing nightly_update.sh (source)" install_asset "scripts/lib/nightly_update.sh" "$ACFS_HOME/scripts/lib/nightly_update.sh" || return 1
+    try_step "Installing nightly-update.sh (runtime wrapper)" install_asset "scripts/lib/nightly_update.sh" "$ACFS_HOME/scripts/nightly-update.sh" || return 1
     try_step "Installing update.sh" install_asset "scripts/lib/update.sh" "$ACFS_HOME/scripts/lib/update.sh" || return 1
     try_step "Installing session.sh" install_asset "scripts/lib/session.sh" "$ACFS_HOME/scripts/lib/session.sh" || return 1
     try_step "Installing continue.sh" install_asset "scripts/lib/continue.sh" "$ACFS_HOME/scripts/lib/continue.sh" || return 1
@@ -5347,6 +5409,8 @@ finalize() {
     try_step "Installing notify.sh" install_asset "scripts/lib/notify.sh" "$ACFS_HOME/scripts/lib/notify.sh" || return 1
     try_step "Installing notifications.sh" install_asset "scripts/lib/notifications.sh" "$ACFS_HOME/scripts/lib/notifications.sh" || return 1
     try_step "Installing dashboard.sh" install_asset "scripts/lib/dashboard.sh" "$ACFS_HOME/scripts/lib/dashboard.sh" || return 1
+    try_step "Installing acfs-nightly-update.service template" install_asset "scripts/templates/acfs-nightly-update.service" "$ACFS_HOME/scripts/templates/acfs-nightly-update.service" || return 1
+    try_step "Installing acfs-nightly-update.timer template" install_asset "scripts/templates/acfs-nightly-update.timer" "$ACFS_HOME/scripts/templates/acfs-nightly-update.timer" || return 1
 
     local generated_script=""
     local generated_basename=""
@@ -5381,7 +5445,7 @@ finalize() {
     # Install services-setup wizard
     try_step "Installing services-setup.sh" install_asset "scripts/services-setup.sh" "$ACFS_HOME/scripts/services-setup.sh" || return 1
     try_step "Setting scripts permissions" $SUDO chmod 755 "$ACFS_HOME/scripts/services-setup.sh" || return 1
-    try_step "Setting lib scripts permissions" $SUDO chmod 755 "$ACFS_HOME/scripts/lib/"*.sh || return 1
+    try_step "Setting lib scripts permissions" $SUDO chmod 755 "$ACFS_HOME/scripts/lib/"*.sh "$ACFS_HOME/scripts/nightly-update.sh" || return 1
     try_step "Setting generated scripts permissions" $SUDO find "$ACFS_HOME/scripts/generated" -maxdepth 1 -type f -name '*.sh' -exec chmod 755 {} + || return 1
     try_step "Setting scripts ownership" acfs_chown_tree "$TARGET_USER:$TARGET_USER" "$ACFS_HOME/scripts" || return 1
 
@@ -5600,6 +5664,15 @@ run_smoke_test() {
     if [[ "$target_shell" == *"zsh"* ]]; then
         echo "✅ Shell: zsh" >&2
         ((critical_passed += 1))
+    elif acfs_is_externally_managed_user "$TARGET_USER"; then
+        if acfs_external_shell_handoff_configured "$TARGET_HOME"; then
+            echo "✅ Shell: externally managed login hands off to zsh" >&2
+            ((critical_passed += 1))
+        else
+            echo "⚠ Shell: externally managed account reports ${target_shell:-unknown}" >&2
+            echo "    Note: local chsh is not valid here; configure the identity provider shell or add the ACFS bash-to-zsh handoff." >&2
+            ((warnings += 1))
+        fi
     else
         echo "✖ Shell: zsh (found: ${target_shell:-unknown})" >&2
         echo "    Fix: sudo chsh -s \"\$(command -v zsh)\" \"$TARGET_USER\"" >&2

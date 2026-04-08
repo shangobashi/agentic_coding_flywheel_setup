@@ -41,6 +41,9 @@ export BUN_INSTALL="$HOME/.bun"
 
 # Ensure user-local binaries take precedence (e.g., native Claude install).
 export PATH="$HOME/.local/bin:$PATH"
+if command -v zsh &>/dev/null; then
+  export SHELL="$(command -v zsh)"
+fi
 
 # --- Oh My Zsh ---
 export ZSH="$HOME/.oh-my-zsh"

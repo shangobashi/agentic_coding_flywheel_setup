@@ -255,6 +255,9 @@ migrate_ssh_keys() {
 set_default_shell() {
     local shell="$1"
     local target="$TARGET_USER"
+    local target_home="${TARGET_HOME:-}"
+    local passwd_entry=""
+    local local_entry=""
 
     if [[ -z "$shell" ]]; then
         shell=$(command -v zsh)
@@ -263,6 +266,30 @@ set_default_shell() {
     if [[ ! -x "$shell" ]]; then
         log_warn "Shell $shell not found or not executable"
         return 1
+    fi
+
+    passwd_entry="$(getent passwd "$target" 2>/dev/null || true)"
+    if [[ -r /etc/passwd ]]; then
+        local_entry="$(awk -F: -v user="$target" '$1 == user { print $0; exit }' /etc/passwd 2>/dev/null || true)"
+    fi
+
+    if [[ -z "$target_home" ]] && [[ -n "$passwd_entry" ]]; then
+        target_home="$(printf '%s\n' "$passwd_entry" | cut -d: -f6)"
+    fi
+
+    if [[ -n "$passwd_entry" ]] && [[ -z "$local_entry" ]]; then
+        log_warn "Shell for $target is managed outside /etc/passwd; installing a bash-to-zsh handoff instead of using chsh"
+        if [[ -n "$target_home" ]]; then
+            cat >> "$target_home/.bashrc" << 'EOF'
+# ACFS externally-managed shell handoff
+if [[ $- == *i* ]] && [[ -t 0 ]] && command -v zsh >/dev/null 2>&1 && [[ -z "${ACFS_ZSH_HANDOFF_ACTIVE:-}" ]]; then
+    export ACFS_ZSH_HANDOFF_ACTIVE=1
+    exec "$(command -v zsh)" -l
+fi
+EOF
+            $SUDO chown "$target:$target" "$target_home/.bashrc" 2>/dev/null || true
+        fi
+        return 0
     fi
 
     log_detail "Setting default shell to $shell for $target"

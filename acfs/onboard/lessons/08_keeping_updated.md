@@ -32,6 +32,7 @@ That's it! This updates:
 - Coding agents (Claude, Codex, Gemini)
 - Cloud CLIs (Wrangler, Supabase, Vercel)
 - Language runtimes (Bun, Rust, uv)
+- Dicklesworthstone stack tools (ntm, slb, ubs, br, bv, etc.)
 
 ---
 
@@ -61,12 +62,20 @@ See what would be updated without changing anything:
 acfs-update --dry-run
 ```
 
-### Include Stack Tools
+### ACFS Self-Update Safety
 
-The Dicklesworthstone stack (ntm, slb, ubs, etc.) is skipped by default because it takes longer. Include it with:
+If your machine is running from a deployed `~/.acfs` tree instead of a git checkout, ACFS now skips self-update by default to avoid overwriting local files. Routine tool updates still run normally.
+
+If you want a fully safe preview on any machine:
 
 ```bash
-acfs-update --stack
+acfs-update --dry-run --no-self-update
+```
+
+If you intentionally want to convert a non-git install into a git checkout for future ACFS self-updates:
+
+```bash
+acfs-update --bootstrap-self-update
 ```
 
 ---
@@ -76,10 +85,10 @@ acfs-update --stack
 For hands-off maintenance, use quiet mode:
 
 ```bash
-acfs-update --yes --quiet
+acfs-update --yes --quiet --no-self-update
 ```
 
-This runs without prompts and only shows errors.
+This runs without prompts, only shows errors, and leaves the ACFS tree itself alone.
 
 You can add this to a cron job for weekly updates:
 
@@ -88,7 +97,7 @@ You can add this to a cron job for weekly updates:
 crontab -e
 
 # Add this line for weekly Sunday 3am updates
-0 3 * * 0 $HOME/.local/bin/acfs-update --yes --quiet >> $HOME/.acfs/logs/cron-update.log 2>&1
+0 3 * * 0 $HOME/.local/bin/acfs-update --yes --quiet --no-self-update >> $HOME/.acfs/logs/cron-update.log 2>&1
 ```
 
 ---
@@ -151,12 +160,12 @@ git -C ~/.oh-my-zsh remote -v
 
 | Command | What it does |
 |---------|--------------|
-| `acfs-update` | Update everything (except stack) |
-| `acfs-update --stack` | Include stack tools |
+| `acfs-update` | Update everything, including stack tools |
 | `acfs-update --agents-only` | Just update agents |
 | `acfs-update --no-apt` | Skip apt (faster) |
 | `acfs-update --dry-run` | Preview changes |
-| `acfs-update --yes --quiet` | Automated mode |
+| `acfs-update --yes --quiet --no-self-update` | Automated mode |
+| `acfs-update --bootstrap-self-update` | Opt into git bootstrap for ACFS self-update |
 | `acfs-update --help` | Full help |
 
 ---
