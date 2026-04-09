@@ -10,7 +10,7 @@
 declare -gA ACFS_INTERNAL_CHECKSUMS=(
   [scripts/lib/security.sh]="c120e94f581ec87118c7776ebcde819dbc7f55cc0426e7598f107893526055ce"
   [scripts/lib/agents.sh]="260b0437b4fca76e288b4f8d751e8a17b80c231d806d796ffdd02ff58d143c30"
-  [scripts/lib/update.sh]="264185921f5feab6400af72b31c7116199aafbef3401418c54e3ff6ff0508975"
+  [scripts/lib/update.sh]="f91541d41d54b0c3fb1a30fddc04f70f3194032cb9c5830a0462cafb69548724"
   [scripts/lib/doctor.sh]="c2e396c6855d682b97d603a7f5af3151a0c6bc58be274f79c0e9635dfc628905"
   [scripts/lib/install_helpers.sh]="0bc645d7cb7ac3f71374d8723df22868ae94a9d3bbcd671ec45845a42480cf4c"
   [scripts/lib/logging.sh]="ff0c7d452bf66ade53d9e0bc57598fb4137031ca9af6e051334282255334f1df"

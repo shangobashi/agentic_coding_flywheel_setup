@@ -1173,6 +1173,20 @@ parse_args() {
 # ============================================================
 # Utility functions
 # ============================================================
+normalize_read_only_modes() {
+    if [[ "${DRY_RUN:-false}" != "true" ]] && [[ "${PRINT_MODE:-false}" != "true" ]]; then
+        return 0
+    fi
+
+    case "${AUTO_FIX_MODE:-prompt}" in
+        no|dry-run)
+            ;;
+        *)
+            AUTO_FIX_MODE="dry-run"
+            ;;
+    esac
+}
+
 command_exists() {
     command -v "$1" &>/dev/null
 }
@@ -6118,6 +6132,7 @@ $summary_content"
 # ============================================================
 main() {
     parse_args "$@"
+    normalize_read_only_modes
 
     # --yes should always behave non-interactively (skip prompts), regardless of flag order.
     if [[ "$YES_MODE" == "true" ]]; then

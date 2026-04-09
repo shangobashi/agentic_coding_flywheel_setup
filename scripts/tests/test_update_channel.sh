@@ -204,6 +204,175 @@ else
 fi
 
 # ============================================================
+section "Test 3c: update dry-run does not create on-disk logs"
+# ============================================================
+dry_run_logging_output=$(
+    bash -c '
+        source "'"$UPDATE_SH"'"
+
+        temp_home="${TMPDIR:-/tmp}/acfs-update-dry-run-logging.$$"
+        HOME="$temp_home"
+        UPDATE_LOG_DIR="$temp_home/.acfs/logs/updates"
+        DRY_RUN=true
+        UPDATE_LOG_FILE="sentinel"
+
+        init_logging
+
+        printf "LOG_FILE=%s\n" "${UPDATE_LOG_FILE:-}"
+        if [[ -d "$UPDATE_LOG_DIR" ]]; then
+            echo "DIR_CREATED=yes"
+        else
+            echo "DIR_CREATED=no"
+        fi
+    ' 2>&1
+) || true
+
+if echo "$dry_run_logging_output" | grep -q '^LOG_FILE=$' && echo "$dry_run_logging_output" | grep -q '^DIR_CREATED=no$'; then
+    pass "Dry-run skips creating update log files and directories"
+else
+    fail "Dry-run logging still created filesystem state: $dry_run_logging_output"
+fi
+
+# ============================================================
+section "Test 3d: jq bootstrap is skipped in dry-run"
+# ============================================================
+dry_run_jq_output=$(
+    bash -c '
+        source "'"$UPDATE_SH"'"
+
+        DRY_RUN=true
+        QUIET=true
+        YES_MODE=false
+        UPDATE_LOG_FILE="/dev/null"
+        NO_COLOR=1
+        YELLOW="" NC=""
+
+        cmd_exists() {
+            return 1
+        }
+
+        apt-get() {
+            echo "apt-get should not run in dry-run" >&2
+            return 99
+        }
+
+        sudo() {
+            echo "sudo should not run in dry-run" >&2
+            return 99
+        }
+
+        update_ensure_jq_available
+        echo "JQ_EXIT=$?"
+    ' 2>&1
+) || true
+
+if echo "$dry_run_jq_output" | grep -q '^JQ_EXIT=0$' && ! echo "$dry_run_jq_output" | grep -q 'should not run'; then
+    pass "Dry-run skips jq installation attempts entirely"
+else
+    fail "Dry-run still attempted jq installation: $dry_run_jq_output"
+fi
+
+# ============================================================
+section "Test 3e: legacy cleanup stays non-destructive in dry-run"
+# ============================================================
+dry_run_cleanup_output=$(
+    bash -c '
+        source "'"$UPDATE_SH"'"
+
+        temp_home="${TMPDIR:-/tmp}/acfs-update-dry-run-cleanup.$$"
+        mkdir -p "$temp_home/.claude/hooks"
+        printf "legacy\n" > "$temp_home/.claude/hooks/git_safety_guard.sh"
+
+        HOME="$temp_home"
+        DRY_RUN=true
+        QUIET=true
+        UPDATE_LOG_FILE="/dev/null"
+        NO_COLOR=1
+        RED="" GREEN="" YELLOW="" CYAN="" BOLD="" DIM="" NC=""
+
+        log_item() { printf "%s|%s|%s\n" "$1" "$2" "$3"; }
+
+        cleanup_legacy_git_safety_guard
+
+        if [[ -f "$HOME/.claude/hooks/git_safety_guard.sh" ]]; then
+            echo "FILE_STILL_EXISTS=yes"
+        else
+            echo "FILE_STILL_EXISTS=no"
+        fi
+    ' 2>&1
+) || true
+
+if echo "$dry_run_cleanup_output" | grep -q '^skip|legacy cleanup|dry-run: would remove git_safety_guard artifacts$' \
+    && echo "$dry_run_cleanup_output" | grep -q '^FILE_STILL_EXISTS=yes$'; then
+    pass "Dry-run legacy cleanup reports intent without deleting files"
+else
+    fail "Dry-run legacy cleanup still mutated files or lost its preview message: $dry_run_cleanup_output"
+fi
+
+# ============================================================
+section "Test 3f: ACFS self-update dry-run avoids git fetch mutations"
+# ============================================================
+dry_run_self_update_output=$(
+    bash -c '
+        source "'"$UPDATE_SH"'"
+
+        temp_root="${TMPDIR:-/tmp}/acfs-update-dry-run-self.$$"
+        mkdir -p "$temp_root/.git"
+
+        ACFS_REPO_ROOT="$temp_root"
+        DRY_RUN=true
+        QUIET=true
+        UPDATE_SELF=true
+        ACFS_SELF_UPDATE_DONE=false
+        UPDATE_LOG_FILE="/dev/null"
+        ACFS_VERSION_DISPLAY="vtest"
+        NO_COLOR=1
+        RED="" GREEN="" YELLOW="" CYAN="" BOLD="" DIM="" NC=""
+
+        log_item() { printf "%s|%s|%s\n" "$1" "$2" "$3"; }
+
+        git() {
+            if [[ "$*" == *"fetch origin main"* ]]; then
+                echo "FETCH_CALLED=yes"
+                return 99
+            fi
+
+            case "$*" in
+                *"remote get-url origin"*)
+                    printf "https://github.com/Dicklesworthstone/agentic_coding_flywheel_setup.git\n"
+                    return 0
+                    ;;
+                *"branch --show-current"*)
+                    printf "main\n"
+                    return 0
+                    ;;
+                *"rev-parse HEAD"*)
+                    printf "1111111111111111111111111111111111111111\n"
+                    return 0
+                    ;;
+                *"ls-remote --heads origin main"*)
+                    printf "2222222222222222222222222222222222222222\trefs/heads/main\n"
+                    return 0
+                    ;;
+                *)
+                    printf "unexpected git call: %s\n" "$*" >&2
+                    return 98
+                    ;;
+            esac
+        }
+
+        update_acfs_self
+    ' 2>&1
+) || true
+
+if ! echo "$dry_run_self_update_output" | grep -q '^FETCH_CALLED=yes$' \
+    && echo "$dry_run_self_update_output" | grep -q '^ok|ACFS|would update (remote main differs)$'; then
+    pass "ACFS self-update dry-run uses a non-mutating remote probe instead of git fetch"
+else
+    fail "ACFS self-update dry-run still triggered git fetch or lost its preview output: $dry_run_self_update_output"
+fi
+
+# ============================================================
 section "Test 4: Function instrumentation (mock)"
 # ============================================================
 # Source update.sh, override update_run_verified_installer with a mock,

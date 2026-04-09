@@ -118,6 +118,10 @@ UPDATE_LOG_FILE=""
 declare -gA VERSION_BEFORE=()
 declare -gA VERSION_AFTER=()
 
+update_is_read_only_mode() {
+    [[ "${DRY_RUN:-false}" == "true" ]]
+}
+
 # ============================================================
 # Path Setup
 # ============================================================
@@ -214,6 +218,11 @@ is_expected_acfs_origin_url() {
 # ============================================================
 
 init_logging() {
+    if update_is_read_only_mode; then
+        UPDATE_LOG_FILE=""
+        return 0
+    fi
+
     mkdir -p "$UPDATE_LOG_DIR"
     UPDATE_LOG_FILE="$UPDATE_LOG_DIR/$(date '+%Y-%m-%d-%H%M%S').log"
 
@@ -233,6 +242,28 @@ log_to_file() {
     local msg="$1"
     if [[ -n "$UPDATE_LOG_FILE" ]]; then
         echo "[$(date '+%H:%M:%S')] $msg" >> "$UPDATE_LOG_FILE"
+    fi
+}
+
+update_ensure_jq_available() {
+    if cmd_exists jq; then
+        return 0
+    fi
+
+    if update_is_read_only_mode; then
+        echo -e "${YELLOW}Dry-run: jq is missing; skipping jq installation and continuing with limited preview${NC}" >&2
+        return 0
+    fi
+
+    echo -e "${YELLOW}Installing jq (required for update operations)...${NC}" >&2
+    if [[ $EUID -eq 0 ]]; then
+        apt-get update -qq 2>/dev/null && apt-get install -y -qq jq 2>/dev/null || true
+    elif cmd_exists sudo; then
+        sudo apt-get update -qq 2>/dev/null && sudo apt-get install -y -qq jq 2>/dev/null || true
+    fi
+
+    if ! cmd_exists jq; then
+        echo -e "${YELLOW}Warning: jq could not be installed; some operations may be limited${NC}" >&2
     fi
 }
 
@@ -760,6 +791,29 @@ update_run_in_target_context() {
 # Clean up legacy git_safety_guard artifacts from pre-DCG installations
 # This runs on every update to ensure stale files are removed
 cleanup_legacy_git_safety_guard() {
+    if update_is_read_only_mode; then
+        local would_clean=false
+        local hooks_dir=""
+        local legacy_file=""
+
+        for hooks_dir in "$HOME/.acfs/claude/hooks" "$HOME/.claude/hooks"; do
+            for legacy_file in git_safety_guard.py git_safety_guard.sh; do
+                if [[ -f "$hooks_dir/$legacy_file" ]]; then
+                    would_clean=true
+                fi
+            done
+        done
+
+        if [[ -f "$HOME/.claude/settings.json" ]] && grep -q "git_safety_guard" "$HOME/.claude/settings.json" 2>/dev/null; then
+            would_clean=true
+        fi
+
+        if [[ "$would_clean" == "true" ]]; then
+            log_item "skip" "legacy cleanup" "dry-run: would remove git_safety_guard artifacts"
+        fi
+        return 0
+    fi
+
     local cleaned=false
     local hooks_dirs=(
         "$HOME/.acfs/claude/hooks"
@@ -823,6 +877,13 @@ cleanup_legacy_bv_alias() {
     local zshrc_local="$HOME/.zshrc.local"
     [[ -f "$zshrc_local" ]] || return 0
 
+    if update_is_read_only_mode; then
+        if grep -qE 'alias bv=|if \[.*\.local/bin/bv.*\]; then' "$zshrc_local" 2>/dev/null; then
+            log_item "skip" "legacy cleanup" "dry-run: would remove stale bv alias block from .zshrc.local"
+        fi
+        return 0
+    fi
+
     # The bv() function in acfs.zshrc handles beads_viewer PATH resolution.
     # Any leftover "alias bv=" in .zshrc.local causes zsh parse errors
     # ("defining function based on alias 'bv'") when acfs.zshrc tries to
@@ -863,6 +924,13 @@ cleanup_legacy_bv_alias() {
 cleanup_legacy_br_alias() {
     local deployed="$HOME/.acfs/zsh/acfs.zshrc"
     [[ -f "$deployed" ]] || return 0
+
+    if update_is_read_only_mode; then
+        if grep -q "^alias br='bun run dev'" "$deployed" 2>/dev/null; then
+            log_item "skip" "legacy cleanup" "dry-run: would fix br alias conflict in deployed acfs.zshrc"
+        fi
+        return 0
+    fi
 
     # Check for the exact problematic alias (uncommented)
     if grep -q "^alias br='bun run dev'" "$deployed" 2>/dev/null; then
@@ -1315,6 +1383,10 @@ _acfs_refresh_security_from_fetched_remote() {
     fi
 }
 
+_acfs_remote_main_head() {
+    git -C "$ACFS_REPO_ROOT" ls-remote --heads origin main 2>/dev/null | awk 'NR==1 { print $1 }'
+}
+
 # ------------------------------------------------------------
 # Self-Update: Update ACFS itself before anything else
 # ------------------------------------------------------------
@@ -1453,9 +1525,31 @@ update_acfs_self() {
     # Only auto-update on main branch, but still refresh security files
     if [[ "$current_branch" != "main" ]]; then
         log_item "skip" "ACFS self-update" "not on main branch (on: $current_branch)"
+        if update_is_read_only_mode; then
+            return 0
+        fi
         # Still fetch and refresh security files so checksums stay fresh
         if git -C "$ACFS_REPO_ROOT" fetch origin main --quiet 2>/dev/null; then
             _acfs_refresh_security_from_fetched_remote
+        fi
+        return 0
+    fi
+
+    local local_head=""
+    local remote_head=""
+    local_head=$(git -C "$ACFS_REPO_ROOT" rev-parse HEAD 2>/dev/null) || true
+
+    if update_is_read_only_mode; then
+        remote_head="$(_acfs_remote_main_head)"
+        if [[ -z "$local_head" ]] || [[ -z "$remote_head" ]]; then
+            log_item "warn" "ACFS self-update" "failed to compare versions in dry-run"
+            return 0
+        fi
+
+        if [[ "$local_head" == "$remote_head" ]]; then
+            log_item "ok" "ACFS $ACFS_VERSION_DISPLAY" "already up to date"
+        else
+            log_item "ok" "ACFS" "would update (remote main differs)"
         fi
         return 0
     fi
@@ -1475,7 +1569,6 @@ update_acfs_self() {
     fi
 
     # Compare local HEAD with remote
-    local local_head remote_head
     local_head=$(git -C "$ACFS_REPO_ROOT" rev-parse HEAD 2>/dev/null) || true
     remote_head=$(git -C "$ACFS_REPO_ROOT" rev-parse origin/main 2>/dev/null) || true
 
@@ -3488,18 +3581,8 @@ main() {
 
     # Ensure jq is available (issue #180): on minimal Ubuntu installs jq may
     # not be present, but later update steps (DCG cleanup, state management)
-    # depend on it.  Install it early via apt before any other work.
-    if ! command -v jq &>/dev/null; then
-        echo -e "${YELLOW}Installing jq (required for update operations)...${NC}" >&2
-        if [[ $EUID -eq 0 ]]; then
-            apt-get update -qq 2>/dev/null && apt-get install -y -qq jq 2>/dev/null || true
-        elif command -v sudo &>/dev/null; then
-            sudo apt-get update -qq 2>/dev/null && sudo apt-get install -y -qq jq 2>/dev/null || true
-        fi
-        if ! command -v jq &>/dev/null; then
-            echo -e "${YELLOW}Warning: jq could not be installed; some operations may be limited${NC}" >&2
-        fi
-    fi
+    # depend on it. Keep dry-run truly read-only by skipping the install there.
+    update_ensure_jq_available
 
     # Clean up legacy artifacts from previous versions
     cleanup_legacy_git_safety_guard

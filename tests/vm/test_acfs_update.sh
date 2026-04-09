@@ -133,6 +133,13 @@ test_help() {
 # Test 2: --dry-run mode
 test_dry_run() {
     info "Testing --dry-run mode"
+    local log_dir="$HOME/.acfs/logs/updates"
+    local before_log_count=0
+    local after_log_count=0
+    if [[ -d "$log_dir" ]]; then
+        before_log_count=$(find "$log_dir" -maxdepth 1 -type f -name '*.log' | wc -l | tr -d ' ')
+    fi
+
     local output
     output=$(acfs-update --dry-run --yes 2>&1) || true
 
@@ -147,6 +154,16 @@ test_dry_run() {
         pass "--dry-run shows skip markers"
     else
         fail "--dry-run missing skip markers"
+    fi
+
+    if [[ -d "$log_dir" ]]; then
+        after_log_count=$(find "$log_dir" -maxdepth 1 -type f -name '*.log' | wc -l | tr -d ' ')
+    fi
+
+    if [[ "$before_log_count" == "$after_log_count" ]]; then
+        pass "--dry-run does not create update log files"
+    else
+        fail "--dry-run created update log files" "before=$before_log_count after=$after_log_count"
     fi
 }
 

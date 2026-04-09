@@ -78,6 +78,10 @@ extract_print_resume_hint_function() {
     sed -n '/^print_resume_hint()/,/^}$/p' "$REPO_ROOT/install.sh"
 }
 
+extract_normalize_read_only_modes_function() {
+    sed -n '/^normalize_read_only_modes()/,/^}$/p' "$REPO_ROOT/install.sh"
+}
+
 # Actually, let's just define our test environment and source install.sh functions
 setup_test_env() {
     # Reset all variables to defaults
@@ -92,6 +96,9 @@ setup_test_env() {
     SKIP_UBUNTU_UPGRADE=false
     YES_MODE=false
     STRICT_MODE=false
+    DRY_RUN=false
+    PRINT_MODE=false
+    AUTO_FIX_MODE="prompt"
 }
 
 # Source the generate_resume_hint function
@@ -99,6 +106,8 @@ setup_test_env() {
 eval "$(extract_resume_hint_function)"
 # shellcheck disable=SC1090
 eval "$(extract_print_resume_hint_function)"
+# shellcheck disable=SC1090
+eval "$(extract_normalize_read_only_modes_function)"
 
 STATE_SET_RESUME_HINT_CALLS=0
 STATE_SET_RESUME_HINT_VALUE=""
@@ -396,6 +405,54 @@ test_print_resume_hint_uses_state_helper() {
     return 0
 }
 
+# Test: --dry-run forces auto-fix preview mode instead of mutating mode
+test_dry_run_forces_autofix_preview() {
+    setup_test_env
+    DRY_RUN=true
+    AUTO_FIX_MODE="prompt"
+
+    normalize_read_only_modes
+
+    if [[ "$AUTO_FIX_MODE" != "dry-run" ]]; then
+        log "  Expected AUTO_FIX_MODE=dry-run for --dry-run, got: $AUTO_FIX_MODE"
+        return 1
+    fi
+
+    return 0
+}
+
+# Test: --print also forces auto-fix preview mode
+test_print_mode_forces_autofix_preview() {
+    setup_test_env
+    PRINT_MODE=true
+    AUTO_FIX_MODE="yes"
+
+    normalize_read_only_modes
+
+    if [[ "$AUTO_FIX_MODE" != "dry-run" ]]; then
+        log "  Expected AUTO_FIX_MODE=dry-run for --print, got: $AUTO_FIX_MODE"
+        return 1
+    fi
+
+    return 0
+}
+
+# Test: explicit --no-auto-fix is preserved in read-only modes
+test_read_only_mode_preserves_no_autofix() {
+    setup_test_env
+    DRY_RUN=true
+    AUTO_FIX_MODE="no"
+
+    normalize_read_only_modes
+
+    if [[ "$AUTO_FIX_MODE" != "no" ]]; then
+        log "  Expected AUTO_FIX_MODE=no to be preserved, got: $AUTO_FIX_MODE"
+        return 1
+    fi
+
+    return 0
+}
+
 # ============================================================
 # Main
 # ============================================================
@@ -421,6 +478,9 @@ main() {
     run_test test_main_branch_shorthand
     run_test test_empty_ref_shorthand
     run_test test_print_resume_hint_uses_state_helper
+    run_test test_dry_run_forces_autofix_preview
+    run_test test_print_mode_forces_autofix_preview
+    run_test test_read_only_mode_preserves_no_autofix
 
     # Summary
     log ""
