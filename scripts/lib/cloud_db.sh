@@ -60,6 +60,39 @@ _cloud_get_sudo() {
     fi
 }
 
+_cloud_target_home() {
+    local target_user="${1:-${TARGET_USER:-ubuntu}}"
+    local passwd_entry=""
+    local current_user=""
+
+    if [[ -n "${TARGET_HOME:-}" ]]; then
+        printf '%s\n' "$TARGET_HOME"
+        return 0
+    fi
+
+    if [[ "$target_user" == "root" ]]; then
+        printf '/root\n'
+        return 0
+    fi
+
+    passwd_entry="$(getent passwd "$target_user" 2>/dev/null || true)"
+    if [[ -n "$passwd_entry" ]]; then
+        passwd_entry="$(printf '%s\n' "$passwd_entry" | cut -d: -f6)"
+        if [[ -n "$passwd_entry" ]] && [[ "$passwd_entry" == /* ]]; then
+            printf '%s\n' "$passwd_entry"
+            return 0
+        fi
+    fi
+
+    current_user="$(whoami 2>/dev/null || true)"
+    if [[ "$current_user" == "$target_user" ]] && [[ -n "${HOME:-}" ]] && [[ "${HOME}" == /* ]]; then
+        printf '%s\n' "$HOME"
+        return 0
+    fi
+
+    printf '/home/%s\n' "$target_user"
+}
+
 # Run a command as target user
 _cloud_run_as_user() {
     local target_user="${TARGET_USER:-ubuntu}"
@@ -106,7 +139,8 @@ _cloud_run_as_postgres() {
 # Get bun binary path for target user
 _cloud_get_bun_bin() {
     local target_user="${TARGET_USER:-ubuntu}"
-    local target_home="${TARGET_HOME:-/home/$target_user}"
+    local target_home=""
+    target_home="$(_cloud_target_home "$target_user")"
     echo "$target_home/.bun/bin/bun"
 }
 
@@ -274,7 +308,8 @@ install_vault() {
 _install_cloud_cli() {
     local cli="$1"
     local target_user="${TARGET_USER:-ubuntu}"
-    local target_home="${TARGET_HOME:-/home/$target_user}"
+    local target_home=""
+    target_home="$(_cloud_target_home "$target_user")"
     local bun_bin
     bun_bin=$(_cloud_get_bun_bin)
     local cli_bin="$target_home/.bun/bin/$cli"
@@ -363,7 +398,8 @@ install_cloud_clis() {
 # Verify all cloud and database tools
 verify_cloud_db() {
     local target_user="${TARGET_USER:-ubuntu}"
-    local target_home="${TARGET_HOME:-/home/$target_user}"
+    local target_home=""
+    target_home="$(_cloud_target_home "$target_user")"
     local all_pass=true
 
     log_detail "Verifying cloud & database tools..."
@@ -428,7 +464,8 @@ verify_cloud_db() {
 # Get versions of installed tools (for doctor output)
 get_cloud_db_versions() {
     local target_user="${TARGET_USER:-ubuntu}"
-    local target_home="${TARGET_HOME:-/home/$target_user}"
+    local target_home=""
+    target_home="$(_cloud_target_home "$target_user")"
     local bun_bin_dir="$target_home/.bun/bin"
 
     echo "Cloud & Database Tool Versions:"

@@ -97,10 +97,44 @@ _stack_get_sudo() {
     fi
 }
 
+_stack_target_home() {
+    local target_user="${1:-${TARGET_USER:-ubuntu}}"
+    local passwd_entry=""
+    local current_user=""
+
+    if [[ -n "${TARGET_HOME:-}" ]]; then
+        printf '%s\n' "$TARGET_HOME"
+        return 0
+    fi
+
+    if [[ "$target_user" == "root" ]]; then
+        printf '/root\n'
+        return 0
+    fi
+
+    passwd_entry="$(getent passwd "$target_user" 2>/dev/null || true)"
+    if [[ -n "$passwd_entry" ]]; then
+        passwd_entry="$(printf '%s\n' "$passwd_entry" | cut -d: -f6)"
+        if [[ -n "$passwd_entry" ]] && [[ "$passwd_entry" == /* ]]; then
+            printf '%s\n' "$passwd_entry"
+            return 0
+        fi
+    fi
+
+    current_user="$(whoami 2>/dev/null || true)"
+    if [[ "$current_user" == "$target_user" ]] && [[ -n "${HOME:-}" ]] && [[ "${HOME}" == /* ]]; then
+        printf '%s\n' "$HOME"
+        return 0
+    fi
+
+    printf '/home/%s\n' "$target_user"
+}
+
 # Run a command as target user
 _stack_run_as_user() {
     local target_user="${TARGET_USER:-ubuntu}"
-    local target_home="${TARGET_HOME:-/home/$target_user}"
+    local target_home=""
+    target_home="$(_stack_target_home "$target_user")"
     local target_path_prefix="${ACFS_BIN_DIR:-$target_home/.local/bin}:$target_home/.cargo/bin:$target_home/.bun/bin:$target_home/.atuin/bin:$target_home/go/bin"
     local cmd="$1"
     local wrapped_cmd="export PATH=\"$target_path_prefix:\$PATH\"; set -o pipefail; $cmd"
@@ -414,7 +448,8 @@ _stack_is_installed() {
 
     # Check in common locations
     local target_user="${TARGET_USER:-ubuntu}"
-    local target_home="${TARGET_HOME:-/home/$target_user}"
+    local target_home=""
+    target_home="$(_stack_target_home "$target_user")"
 
     # Check PATH
     if _stack_command_exists "$cmd"; then
@@ -436,7 +471,8 @@ _stack_is_installed() {
 
 # PCR is only fully installed once both the hook binary and Claude settings entry exist.
 _stack_pcr_installed() {
-    local target_home="${TARGET_HOME:-/home/${TARGET_USER:-ubuntu}}"
+    local target_home=""
+    target_home="$(_stack_target_home "${TARGET_USER:-ubuntu}")"
     local hook_script="$target_home/.local/bin/claude-post-compact-reminder"
     local settings_file="$target_home/.claude/settings.json"
     local alt_settings_file="$target_home/.config/claude/settings.json"
@@ -503,7 +539,8 @@ install_ntm() {
 install_mcp_agent_mail() {
     local tool="mcp_agent_mail"
     local target_user="${TARGET_USER:-ubuntu}"
-    local target_home="${TARGET_HOME:-/home/$target_user}"
+    local target_home=""
+    target_home="$(_stack_target_home "$target_user")"
     local target_dir="$target_home/mcp_agent_mail"
 
     if _stack_tool_ready "$tool"; then

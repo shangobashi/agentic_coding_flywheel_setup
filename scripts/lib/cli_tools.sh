@@ -78,6 +78,39 @@ _cli_get_sudo() {
     fi
 }
 
+_cli_target_home() {
+    local target_user="${1:-${TARGET_USER:-ubuntu}}"
+    local passwd_entry=""
+    local current_user=""
+
+    if [[ -n "${TARGET_HOME:-}" ]]; then
+        printf '%s\n' "$TARGET_HOME"
+        return 0
+    fi
+
+    if [[ "$target_user" == "root" ]]; then
+        printf '/root\n'
+        return 0
+    fi
+
+    passwd_entry="$(getent passwd "$target_user" 2>/dev/null || true)"
+    if [[ -n "$passwd_entry" ]]; then
+        passwd_entry="$(printf '%s\n' "$passwd_entry" | cut -d: -f6)"
+        if [[ -n "$passwd_entry" ]] && [[ "$passwd_entry" == /* ]]; then
+            printf '%s\n' "$passwd_entry"
+            return 0
+        fi
+    fi
+
+    current_user="$(whoami 2>/dev/null || true)"
+    if [[ "$current_user" == "$target_user" ]] && [[ -n "${HOME:-}" ]] && [[ "${HOME}" == /* ]]; then
+        printf '%s\n' "$HOME"
+        return 0
+    fi
+
+    printf '/home/%s\n' "$target_user"
+}
+
 # Fetch latest version tag from GitHub
 # Usage: _fetch_github_version "owner/repo" [strip_v]
 _fetch_github_version() {
@@ -225,7 +258,8 @@ install_apt_cli_tools() {
 # Install CLI tools via cargo (for latest versions)
 install_cargo_cli_tools() {
     local target_user="${TARGET_USER:-ubuntu}"
-    local target_home="${TARGET_HOME:-/home/$target_user}"
+    local target_home=""
+    target_home="$(_cli_target_home "$target_user")"
     local cargo_bin="$target_home/.cargo/bin/cargo"
 
     log_detail "Installing cargo-based CLI tools..."
@@ -483,7 +517,8 @@ install_yq() {
 # Install atuin (shell history)
 install_atuin() {
     local target_user="${TARGET_USER:-ubuntu}"
-    local target_home="${TARGET_HOME:-/home/$target_user}"
+    local target_home=""
+    target_home="$(_cli_target_home "$target_user")"
 
     if [[ -d "$target_home/.atuin" ]] || _cli_command_exists atuin; then
         log_detail "atuin already installed"

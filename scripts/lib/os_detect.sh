@@ -69,8 +69,14 @@ is_fresh_vps() {
     local target_user="${TARGET_USER:-ubuntu}"
     local target_home="${TARGET_HOME:-}"
     if [[ -z "$target_home" ]]; then
-        if [[ "$target_user" == "root" ]]; then
+        local passwd_entry=""
+        passwd_entry="$(getent passwd "$target_user" 2>/dev/null || true)"
+        if [[ -n "$passwd_entry" ]]; then
+            target_home="$(printf '%s\n' "$passwd_entry" | cut -d: -f6)"
+        elif [[ "$target_user" == "root" ]]; then
             target_home="/root"
+        elif [[ "$target_user" == "$(whoami 2>/dev/null || true)" ]] && [[ -n "${HOME:-}" ]]; then
+            target_home="$HOME"
         else
             target_home="/home/$target_user"
         fi

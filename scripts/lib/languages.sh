@@ -44,10 +44,42 @@ _lang_get_sudo() {
     fi
 }
 
+_lang_target_home() {
+    local target_user="${1:-${TARGET_USER:-ubuntu}}"
+    local passwd_entry=""
+    local current_user=""
+
+    if [[ -n "${TARGET_HOME:-}" ]]; then
+        printf '%s\n' "$TARGET_HOME"
+        return 0
+    fi
+
+    if [[ "$target_user" == "root" ]]; then
+        printf '/root\n'
+        return 0
+    fi
+
+    passwd_entry="$(getent passwd "$target_user" 2>/dev/null || true)"
+    if [[ -n "$passwd_entry" ]]; then
+        passwd_entry="$(printf '%s\n' "$passwd_entry" | cut -d: -f6)"
+        if [[ -n "$passwd_entry" ]] && [[ "$passwd_entry" == /* ]]; then
+            printf '%s\n' "$passwd_entry"
+            return 0
+        fi
+    fi
+
+    current_user="$(whoami 2>/dev/null || true)"
+    if [[ "$current_user" == "$target_user" ]] && [[ -n "${HOME:-}" ]] && [[ "${HOME}" == /* ]]; then
+        printf '%s\n' "$HOME"
+        return 0
+    fi
+
+    printf '/home/%s\n' "$target_user"
+}
+
 # Run a command as target user
 _lang_run_as_user() {
     local target_user="${TARGET_USER:-ubuntu}"
-    local target_home="${TARGET_HOME:-/home/$target_user}"
     local cmd="$1"
     local wrapped_cmd="set -o pipefail; $cmd"
 
@@ -96,7 +128,8 @@ _lang_require_security() {
 # Ensure ~/.local/bin exists for target user
 _lang_ensure_local_bin() {
     local target_user="${TARGET_USER:-ubuntu}"
-    local target_home="${TARGET_HOME:-/home/$target_user}"
+    local target_home=""
+    target_home="$(_lang_target_home "$target_user")"
     local local_bin="$target_home/.local/bin"
 
     if [[ ! -d "$local_bin" ]]; then
@@ -113,7 +146,8 @@ _lang_ensure_local_bin() {
 # Installs to ~/.bun/bin/bun
 install_bun() {
     local target_user="${TARGET_USER:-ubuntu}"
-    local target_home="${TARGET_HOME:-/home/$target_user}"
+    local target_home=""
+    target_home="$(_lang_target_home "$target_user")"
     local bun_dir="$target_home/.bun"
     local bun_bin="$bun_dir/bin/bun"
 
@@ -158,7 +192,8 @@ install_bun() {
 # Upgrade Bun to latest version
 upgrade_bun() {
     local target_user="${TARGET_USER:-ubuntu}"
-    local target_home="${TARGET_HOME:-/home/$target_user}"
+    local target_home=""
+    target_home="$(_lang_target_home "$target_user")"
     local bun_bin="$target_home/.bun/bin/bun"
 
     if [[ ! -x "$bun_bin" ]]; then
@@ -179,7 +214,8 @@ upgrade_bun() {
 # Installs to ~/.local/bin/uv
 install_uv() {
     local target_user="${TARGET_USER:-ubuntu}"
-    local target_home="${TARGET_HOME:-/home/$target_user}"
+    local target_home=""
+    target_home="$(_lang_target_home "$target_user")"
     local uv_bin="$target_home/.local/bin/uv"
 
     # Check if already installed
@@ -229,7 +265,8 @@ install_uv() {
 # Upgrade uv to latest version
 upgrade_uv() {
     local target_user="${TARGET_USER:-ubuntu}"
-    local target_home="${TARGET_HOME:-/home/$target_user}"
+    local target_home=""
+    target_home="$(_lang_target_home "$target_user")"
     local uv_bin="$target_home/.local/bin/uv"
 
     if [[ ! -x "$uv_bin" ]]; then
@@ -250,7 +287,8 @@ upgrade_uv() {
 # Installs to ~/.cargo/bin/
 install_rust() {
     local target_user="${TARGET_USER:-ubuntu}"
-    local target_home="${TARGET_HOME:-/home/$target_user}"
+    local target_home=""
+    target_home="$(_lang_target_home "$target_user")"
     local cargo_bin="$target_home/.cargo/bin/cargo"
 
     # Check if already installed
@@ -294,7 +332,8 @@ install_rust() {
 # Upgrade Rust to latest stable
 upgrade_rust() {
     local target_user="${TARGET_USER:-ubuntu}"
-    local target_home="${TARGET_HOME:-/home/$target_user}"
+    local target_home=""
+    target_home="$(_lang_target_home "$target_user")"
     local rustup_bin="$target_home/.cargo/bin/rustup"
 
     if [[ ! -x "$rustup_bin" ]]; then
@@ -405,7 +444,8 @@ install_go_latest() {
 # Verify all language runtimes are installed
 verify_languages() {
     local target_user="${TARGET_USER:-ubuntu}"
-    local target_home="${TARGET_HOME:-/home/$target_user}"
+    local target_home=""
+    target_home="$(_lang_target_home "$target_user")"
     local all_pass=true
 
     log_detail "Verifying language runtimes..."
@@ -454,7 +494,8 @@ verify_languages() {
 # Get versions of installed languages (for doctor output)
 get_language_versions() {
     local target_user="${TARGET_USER:-ubuntu}"
-    local target_home="${TARGET_HOME:-/home/$target_user}"
+    local target_home=""
+    target_home="$(_lang_target_home "$target_user")"
 
     echo "Language Runtime Versions:"
 

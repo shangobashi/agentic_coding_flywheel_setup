@@ -142,8 +142,51 @@ readonly ACFS_STATE_SCHEMA_VERSION=3
 # ACFS_STATE_FILE should be set by the caller (typically install.sh)
 # Default location: ~/.acfs/state.json
 
+state_resolve_target_home() {
+    if [[ -n "${TARGET_HOME:-}" ]]; then
+        printf '%s\n' "$TARGET_HOME"
+        return 0
+    fi
+
+    if [[ "${TARGET_USER:-}" == "root" ]]; then
+        printf '/root\n'
+        return 0
+    fi
+
+    if [[ -n "${TARGET_USER:-}" ]]; then
+        local passwd_entry=""
+        passwd_entry="$(getent passwd "$TARGET_USER" 2>/dev/null || true)"
+        if [[ -n "$passwd_entry" ]]; then
+            printf '%s\n' "$(printf '%s\n' "$passwd_entry" | cut -d: -f6)"
+            return 0
+        fi
+
+        if [[ "$(whoami 2>/dev/null || true)" == "$TARGET_USER" ]] && [[ -n "${HOME:-}" ]]; then
+            printf '%s\n' "$HOME"
+            return 0
+        fi
+
+        printf '/home/%s\n' "$TARGET_USER"
+        return 0
+    fi
+
+    printf '%s\n' "${HOME:-/root}"
+}
+
 state_get_file() {
-    echo "${ACFS_STATE_FILE:-${ACFS_HOME:-$HOME/.acfs}/state.json}"
+    if [[ -n "${ACFS_STATE_FILE:-}" ]]; then
+        printf '%s\n' "$ACFS_STATE_FILE"
+        return 0
+    fi
+
+    if [[ -n "${ACFS_HOME:-}" ]]; then
+        printf '%s\n' "${ACFS_HOME}/state.json"
+        return 0
+    fi
+
+    local state_home
+    state_home="$(state_resolve_target_home)"
+    printf '%s\n' "${state_home}/.acfs/state.json"
 }
 
 # ============================================================
@@ -159,6 +202,8 @@ state_init() {
 
     local state_dir
     state_dir="$(dirname "$state_file")"
+    local resolved_target_home=""
+    resolved_target_home="$(state_resolve_target_home)"
 
     # Ensure directory exists
     if [[ ! -d "$state_dir" ]]; then
@@ -178,7 +223,8 @@ state_init() {
         # is owned by the target user so they can access the state file later.
         # This is critical for `acfs doctor` to work after a failed install.
         if [[ $EUID -eq 0 ]] && [[ -n "${TARGET_USER:-}" ]] && [[ "$TARGET_USER" != "root" ]]; then
-            local target_home="${TARGET_HOME:-/home/${TARGET_USER}}"
+            local target_home=""
+            target_home="$(state_resolve_target_home)"
             if [[ -n "$target_home" ]] && [[ "$target_home" != "/" ]] && [[ "$target_home" == /* ]] && [[ "$state_dir" == "$target_home/"* ]]; then
                 local target_group=""
                 if command -v id &>/dev/null; then
@@ -209,7 +255,7 @@ state_init() {
             --argjson schema_version "$ACFS_STATE_SCHEMA_VERSION" \
             --arg ver "$ACFS_VERSION" \
             --arg user "$TARGET_USER" \
-            --arg home "$TARGET_HOME" \
+            --arg home "$resolved_target_home" \
             --arg ts "$now" \
             --arg mode "${MODE:-${ACFS_MODE:-vibe}}" \
             --argjson skip_pg "$skip_pg" \
@@ -243,7 +289,7 @@ state_init() {
   "schema_version": $ACFS_STATE_SCHEMA_VERSION,
   "version": "$ACFS_VERSION",
   "target_user": "$TARGET_USER",
-  "target_home": "$TARGET_HOME",
+  "target_home": "$resolved_target_home",
   "started_at": "$now",
   "last_updated": "$now",
   "mode": "${MODE:-${ACFS_MODE:-vibe}}",
@@ -323,7 +369,8 @@ state_write_atomic() {
         # If running as root but targeting a non-root user, ensure the directory
         # is owned by the target user so they can access the state file later.
         if [[ $EUID -eq 0 ]] && [[ -n "${TARGET_USER:-}" ]] && [[ "$TARGET_USER" != "root" ]]; then
-            local target_home="${TARGET_HOME:-/home/${TARGET_USER}}"
+            local target_home=""
+            target_home="$(state_resolve_target_home)"
             if [[ -n "$target_home" ]] && [[ "$target_home" != "/" ]] && [[ "$target_home" == /* ]] && [[ "$target_dir" == "$target_home/"* ]]; then
                 local dir_target_group=""
                 if command -v id &>/dev/null; then
@@ -394,7 +441,8 @@ state_write_atomic() {
     # Only do this for state files under TARGET_HOME (per-user state) and
     # never for system state under /var/lib/acfs.
     if [[ $EUID -eq 0 ]] && [[ -n "${TARGET_USER:-}" ]] && [[ "$TARGET_USER" != "root" ]]; then
-        local target_home="${TARGET_HOME:-/home/${TARGET_USER}}"
+        local target_home=""
+        target_home="$(state_resolve_target_home)"
         if [[ -n "$target_home" ]] && [[ "$target_home" != "/" ]] && [[ "$target_home" == /* ]] && [[ "$temp_file" == "$target_home/"* ]]; then
             local target_group=""
             if command -v id &>/dev/null; then
@@ -2188,8 +2236,12 @@ state_backup_and_remove() {
     state_file="$(state_get_file)"
 
     if [[ -f "$state_file" ]]; then
-        local default_home="${ACFS_HOME:-$HOME/.acfs}"
-        local expected_user_state="${default_home}/state.json"
+        local expected_user_state=""
+        if [[ -n "${ACFS_HOME:-}" ]]; then
+            expected_user_state="${ACFS_HOME}/state.json"
+        else
+            expected_user_state="$(state_resolve_target_home)/.acfs/state.json"
+        fi
         local expected_system_state="/var/lib/acfs/state.json"
 
         case "$state_file" in

@@ -739,7 +739,17 @@ acfs_summary_emit() {
     # Require jq (installed by ensure_base_deps before phases run)
     command -v jq &>/dev/null || return 1
 
-    local summary_dir="${ACFS_HOME:-/home/${TARGET_USER:?}/.acfs}/logs"
+    local resolved_target_home="${TARGET_HOME:-}"
+    if [[ -z "$resolved_target_home" ]]; then
+        resolved_target_home="$(acfs_home_for_user "${TARGET_USER:-ubuntu}")"
+    fi
+
+    local summary_home="${ACFS_HOME:-}"
+    if [[ -z "$summary_home" ]]; then
+        summary_home="${resolved_target_home}/.acfs"
+    fi
+
+    local summary_dir="${summary_home}/logs"
     mkdir -p "$summary_dir" 2>/dev/null || return 1
 
     ACFS_SUMMARY_FILE="${summary_dir}/install_summary_$(date +%Y%m%d_%H%M%S).json"
@@ -787,7 +797,7 @@ acfs_summary_emit() {
         --arg mode "${MODE:-unknown}" \
         --arg ubuntu_version "$ubuntu_version" \
         --arg target_user "${TARGET_USER:-unknown}" \
-        --arg target_home "${TARGET_HOME:-unknown}" \
+        --arg target_home "${resolved_target_home:-unknown}" \
         --argjson phases "$phases_json" \
         --argjson failure "$failure_json" \
         --arg log_file "${ACFS_LOG_FILE:-}" \
@@ -843,7 +853,10 @@ generate_resume_hint() {
         cmd="$cmd | bash -s --"
     else
         # Local script invocation
-        cmd="bash install.sh"
+        local local_install
+        local_install="${SCRIPT_DIR%/}/install.sh"
+        printf -v local_install '%q' "$local_install"
+        cmd="bash $local_install"
     fi
 
     # Always add --resume flag (skips completed phases via state.json)
@@ -875,14 +888,23 @@ print_resume_hint() {
     local failed_phase="${1:-}"
     local failed_step="${2:-}"
     local resume_cmd=""
-    resume_cmd=$(generate_resume_hint "${failed_phase:-}" "${failed_step:-}" 2>/dev/null) || resume_cmd="bash install.sh --resume --yes"
+    if ! resume_cmd=$(generate_resume_hint "${failed_phase:-}" "${failed_step:-}" 2>/dev/null); then
+        if [[ -n "${SCRIPT_DIR:-}" ]]; then
+            local local_install
+            local_install="${SCRIPT_DIR%/}/install.sh"
+            printf -v local_install '%q' "$local_install"
+            resume_cmd="bash $local_install --resume --yes"
+        else
+            resume_cmd="curl -sSL https://acfs.sh | bash -s -- --resume --yes"
+        fi
+    fi
 
     log_info ""
     log_info "╔══════════════════════════════════════════════════════════════╗"
     log_info "║  To resume installation from this point:                     ║"
     log_info "╚══════════════════════════════════════════════════════════════╝"
     log_info ""
-    log_info "  ${resume_cmd:-bash install.sh --resume --yes}"
+    log_info "  $resume_cmd"
     log_info ""
 
     if [[ -n "${failed_phase:-}" ]]; then
@@ -2323,7 +2345,10 @@ install_checksums_yaml() {
 
 run_as_target() {
     local user="$TARGET_USER"
-    local user_home="${TARGET_HOME:-/home/$user}"
+    local user_home="${TARGET_HOME:-}"
+    if [[ -z "$user_home" ]]; then
+        user_home="$(acfs_home_for_user "$user")"
+    fi
     local target_path_prefix="${ACFS_BIN_DIR:-$user_home/.local/bin}:$user_home/.cargo/bin:$user_home/.bun/bin:$user_home/.atuin/bin:$user_home/go/bin"
     local current_path="${PATH:-/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin}"
 
@@ -6180,7 +6205,11 @@ main() {
     # Read-only modes (--list-modules, --print-plan, --dry-run, --print) skip locking.
     if [[ "$LIST_MODULES" != "true" ]] && [[ "$PRINT_PLAN_MODE" != "true" ]] \
        && [[ "$DRY_RUN" != "true" ]] && [[ "$PRINT_MODE" != "true" ]]; then
-        local _acfs_lock_dir="${ACFS_HOME:-$HOME/.acfs}"
+        local _acfs_lock_home="${TARGET_HOME:-}"
+        if [[ -z "$_acfs_lock_home" ]]; then
+            _acfs_lock_home="$(acfs_home_for_user "${TARGET_USER:-ubuntu}")"
+        fi
+        local _acfs_lock_dir="${ACFS_HOME:-${_acfs_lock_home}/.acfs}"
         mkdir -p "$_acfs_lock_dir" 2>/dev/null || true
         local _acfs_lock_file="$_acfs_lock_dir/.install.lock"
         # NOTE: On bash 5.3+, `exec N>file` under set -e exits the script
@@ -6247,10 +6276,8 @@ main() {
             local base_home=""
             if [[ -n "${TARGET_HOME:-}" ]]; then
                 base_home="$TARGET_HOME"
-            elif [[ "${TARGET_USER:-}" == "root" ]]; then
-                base_home="/root"
             else
-                base_home="/home/${TARGET_USER}"
+                base_home="$(acfs_home_for_user "${TARGET_USER:-ubuntu}")"
             fi
 
             if [[ -z "$base_home" ]] || [[ "$base_home" == "/" ]]; then
@@ -6390,7 +6417,7 @@ main() {
     # State Management and Resume Logic (mjt.5.8)
     # ============================================================
     # Initialize state file location (uses TARGET_USER's home)
-    ACFS_HOME="${ACFS_HOME:-/home/${TARGET_USER}/.acfs}"
+    ACFS_HOME="${ACFS_HOME:-$TARGET_HOME/.acfs}"
     ACFS_STATE_FILE="${ACFS_STATE_FILE:-$ACFS_HOME/state.json}"
     export ACFS_HOME ACFS_STATE_FILE
 

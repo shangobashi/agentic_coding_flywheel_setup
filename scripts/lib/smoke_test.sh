@@ -30,6 +30,8 @@ if [[ -z "${TARGET_HOME:-}" ]]; then
         TARGET_HOME="$(printf '%s\n' "$_smoke_target_passwd_entry" | cut -d: -f6)"
     elif [[ "${TARGET_USER}" == "root" ]]; then
         TARGET_HOME="/root"
+    elif [[ "${TARGET_USER}" == "$(id -un 2>/dev/null || true)" ]] && [[ -n "${HOME:-}" ]]; then
+        TARGET_HOME="$HOME"
     else
         TARGET_HOME="/home/$TARGET_USER"
     fi
@@ -38,6 +40,8 @@ fi
 if [[ "${TARGET_HOME:-}" != /* ]]; then
     if [[ "${TARGET_USER}" == "root" ]]; then
         TARGET_HOME="/root"
+    elif [[ "${TARGET_USER}" == "$(id -un 2>/dev/null || true)" ]] && [[ -n "${HOME:-}" ]]; then
+        TARGET_HOME="$HOME"
     else
         TARGET_HOME="/home/$TARGET_USER"
     fi

@@ -157,9 +157,25 @@ test_local_script_invocation() {
     local result
     result=$(generate_resume_hint "" "")
 
-    # Should use bash install.sh, not curl
-    if [[ "$result" != "bash install.sh --resume"* ]]; then
-        log "  Expected 'bash install.sh --resume', got: $result"
+    # Should use the original local script path, not a cwd-relative fallback
+    if [[ "$result" != "bash /some/local/path/install.sh --resume"* ]]; then
+        log "  Expected 'bash /some/local/path/install.sh --resume', got: $result"
+        return 1
+    fi
+
+    return 0
+}
+
+# Test: Local script invocation shell-escapes spaces in the path
+test_local_script_invocation_with_spaces() {
+    setup_test_env
+    SCRIPT_DIR="/tmp/acfs local path"
+
+    local result
+    result=$(generate_resume_hint "" "")
+
+    if [[ "$result" != "bash /tmp/acfs\\ local\\ path/install.sh --resume"* ]]; then
+        log "  Expected shell-escaped install path, got: $result"
         return 1
     fi
 
@@ -405,6 +421,32 @@ test_print_resume_hint_uses_state_helper() {
     return 0
 }
 
+# Test: print_resume_hint fallback preserves the absolute local installer path
+test_print_resume_hint_fallback_uses_absolute_local_path() {
+    setup_test_env
+    SCRIPT_DIR="/tmp/acfs fallback"
+    ACFS_STATE_FILE="$(mktemp)"
+    printf '{}\n' > "$ACFS_STATE_FILE"
+    STATE_SET_RESUME_HINT_CALLS=0
+    STATE_SET_RESUME_HINT_VALUE=""
+
+    generate_resume_hint() { return 1; }
+    print_resume_hint "languages" "install_rust"
+
+    if [[ "$STATE_SET_RESUME_HINT_VALUE" != "bash /tmp/acfs\\ fallback/install.sh --resume --yes" ]]; then
+        log "  Expected absolute fallback resume hint, got: $STATE_SET_RESUME_HINT_VALUE"
+        rm -f "$ACFS_STATE_FILE"
+        unset -f generate_resume_hint
+        eval "$(extract_resume_hint_function)"
+        return 1
+    fi
+
+    rm -f "$ACFS_STATE_FILE"
+    unset -f generate_resume_hint
+    eval "$(extract_resume_hint_function)"
+    return 0
+}
+
 # Test: --dry-run forces auto-fix preview mode instead of mutating mode
 test_dry_run_forces_autofix_preview() {
     setup_test_env
@@ -467,6 +509,7 @@ main() {
     # Run all tests
     run_test test_basic_curl_invocation
     run_test test_local_script_invocation
+    run_test test_local_script_invocation_with_spaces
     run_test test_pinned_commit_sha
     run_test test_custom_ref
     run_test test_safe_mode
@@ -478,6 +521,7 @@ main() {
     run_test test_main_branch_shorthand
     run_test test_empty_ref_shorthand
     run_test test_print_resume_hint_uses_state_helper
+    run_test test_print_resume_hint_fallback_uses_absolute_local_path
     run_test test_dry_run_forces_autofix_preview
     run_test test_print_mode_forces_autofix_preview
     run_test test_read_only_mode_preserves_no_autofix

@@ -24,6 +24,32 @@ TESTS_FAILED=0
 TARGET_USER="${1:-ubuntu}"
 TARGET_HOME="${2:-/home/${TARGET_USER}}"
 
+resolve_target_home() {
+    local target_user="${1:-ubuntu}"
+    local passwd_entry=""
+
+    if [[ "$target_user" == "root" ]]; then
+        printf '/root\n'
+        return 0
+    fi
+
+    passwd_entry="$(getent passwd "$target_user" 2>/dev/null || true)"
+    if [[ -n "$passwd_entry" ]]; then
+        passwd_entry="$(printf '%s\n' "$passwd_entry" | cut -d: -f6)"
+        if [[ -n "$passwd_entry" ]] && [[ "$passwd_entry" == /* ]]; then
+            printf '%s\n' "$passwd_entry"
+            return 0
+        fi
+    fi
+
+    if [[ "$target_user" == "$(whoami 2>/dev/null || true)" ]] && [[ -n "${HOME:-}" ]] && [[ "${HOME}" == /* ]]; then
+        printf '%s\n' "$HOME"
+        return 0
+    fi
+
+    printf '/home/%s\n' "$target_user"
+}
+
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -37,6 +63,10 @@ while [[ $# -gt 0 ]]; do
         *) shift ;;
     esac
 done
+
+if [[ "${TARGET_HOME:-}" == "/home/${TARGET_USER}" ]]; then
+    TARGET_HOME="$(resolve_target_home "$TARGET_USER")"
+fi
 
 ACFS_LOGS_DIR="${TARGET_HOME}/.acfs/logs"
 

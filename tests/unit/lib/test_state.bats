@@ -94,3 +94,108 @@ teardown() {
     run state_get ".new_field"
     assert_output "exists"
 }
+
+@test "state: get file prefers passwd-resolved target home when ACFS_HOME unset" {
+    local resolved_home
+    resolved_home=$(create_temp_dir)
+
+    unset ACFS_HOME
+    unset ACFS_STATE_FILE
+    export TARGET_USER="dummy"
+    export TARGET_HOME=""
+    export HOME="/tmp/not-the-target-home"
+
+    getent() {
+        if [[ "$1" == "passwd" && "$2" == "dummy" ]]; then
+            printf "dummy:x:1000:1000::%s:/bin/bash\n" "$resolved_home"
+            return 0
+        fi
+        command getent "$@"
+    }
+
+    run state_get_file
+    assert_success
+    assert_output "$resolved_home/.acfs/state.json"
+}
+
+@test "state: init uses passwd-resolved target home when ACFS_HOME unset" {
+    local resolved_home
+    resolved_home=$(create_temp_dir)
+
+    unset ACFS_HOME
+    unset ACFS_STATE_FILE
+    export TARGET_USER="dummy"
+    export TARGET_HOME=""
+    export HOME="/tmp/not-the-target-home"
+
+    getent() {
+        if [[ "$1" == "passwd" && "$2" == "dummy" ]]; then
+            printf "dummy:x:1000:1000::%s:/bin/bash\n" "$resolved_home"
+            return 0
+        fi
+        command getent "$@"
+    }
+
+    run state_init
+    assert_success
+
+    run test -f "$resolved_home/.acfs/state.json"
+    assert_success
+}
+
+@test "state: init persists resolved target home when TARGET_HOME unset" {
+    local resolved_home
+    resolved_home=$(create_temp_dir)
+
+    unset ACFS_HOME
+    unset ACFS_STATE_FILE
+    export TARGET_USER="dummy"
+    export TARGET_HOME=""
+    export HOME="/tmp/not-the-target-home"
+
+    getent() {
+        if [[ "$1" == "passwd" && "$2" == "dummy" ]]; then
+            printf "dummy:x:1000:1000::%s:/bin/bash\n" "$resolved_home"
+            return 0
+        fi
+        command getent "$@"
+    }
+
+    run state_init
+    assert_success
+
+    run state_get ".target_home"
+    assert_success
+    assert_output "$resolved_home"
+}
+
+@test "state: backup and remove accepts passwd-resolved user state path" {
+    local resolved_home
+    resolved_home=$(create_temp_dir)
+
+    unset ACFS_HOME
+    unset ACFS_STATE_FILE
+    export TARGET_USER="dummy"
+    export TARGET_HOME=""
+    export HOME="/tmp/not-the-target-home"
+
+    getent() {
+        if [[ "$1" == "passwd" && "$2" == "dummy" ]]; then
+            printf "dummy:x:1000:1000::%s:/bin/bash\n" "$resolved_home"
+            return 0
+        fi
+        command getent "$@"
+    }
+
+    mkdir -p "$resolved_home/.acfs"
+    printf '{"schema_version":3}\n' > "$resolved_home/.acfs/state.json"
+
+    run state_backup_and_remove
+    assert_success
+
+    run test ! -f "$resolved_home/.acfs/state.json"
+    assert_success
+
+    run bash -lc "shopt -s nullglob; files=(\"$resolved_home/.acfs/state.json.backup.\"*); [[ \${#files[@]} -eq 1 ]]"
+    assert_success
+}

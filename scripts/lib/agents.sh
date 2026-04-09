@@ -50,6 +50,39 @@ _agent_get_sudo() {
     fi
 }
 
+_agent_target_home() {
+    local target_user="${1:-${TARGET_USER:-ubuntu}}"
+    local passwd_entry=""
+    local current_user=""
+
+    if [[ -n "${TARGET_HOME:-}" ]]; then
+        printf '%s\n' "$TARGET_HOME"
+        return 0
+    fi
+
+    if [[ "$target_user" == "root" ]]; then
+        printf '/root\n'
+        return 0
+    fi
+
+    passwd_entry="$(getent passwd "$target_user" 2>/dev/null || true)"
+    if [[ -n "$passwd_entry" ]]; then
+        passwd_entry="$(printf '%s\n' "$passwd_entry" | cut -d: -f6)"
+        if [[ -n "$passwd_entry" ]] && [[ "$passwd_entry" == /* ]]; then
+            printf '%s\n' "$passwd_entry"
+            return 0
+        fi
+    fi
+
+    current_user="$(whoami 2>/dev/null || true)"
+    if [[ "$current_user" == "$target_user" ]] && [[ -n "${HOME:-}" ]] && [[ "${HOME}" == /* ]]; then
+        printf '%s\n' "$HOME"
+        return 0
+    fi
+
+    printf '/home/%s\n' "$target_user"
+}
+
 # Run a command as target user
 _agent_run_as_user() {
     local target_user="${TARGET_USER:-ubuntu}"
@@ -78,7 +111,8 @@ _agent_run_as_user() {
 # Get bun binary path for target user
 _agent_get_bun_bin() {
     local target_user="${TARGET_USER:-ubuntu}"
-    local target_home="${TARGET_HOME:-/home/$target_user}"
+    local target_home=""
+    target_home="$(_agent_target_home "$target_user")"
     echo "$target_home/.bun/bin/bun"
 }
 
@@ -120,13 +154,15 @@ _agent_create_bun_wrapper() {
 
 _agent_has_nvm_node() {
     local target_user="${TARGET_USER:-ubuntu}"
-    local target_home="${TARGET_HOME:-/home/$target_user}"
+    local target_home=""
+    target_home="$(_agent_target_home "$target_user")"
     compgen -G "$target_home/.nvm/versions/node/*/bin/node" >/dev/null 2>&1
 }
 
 _agent_latest_nvm_node_bin() {
     local target_user="${TARGET_USER:-ubuntu}"
-    local target_home="${TARGET_HOME:-/home/$target_user}"
+    local target_home=""
+    target_home="$(_agent_target_home "$target_user")"
     local latest_bin=""
 
     latest_bin="$(
@@ -232,7 +268,8 @@ _agent_apply_verified_gemini_patch() {
 # Official installer from https://claude.ai/install.sh
 install_claude_code() {
     local target_user="${TARGET_USER:-ubuntu}"
-    local target_home="${TARGET_HOME:-/home/$target_user}"
+    local target_home=""
+    target_home="$(_agent_target_home "$target_user")"
     local claude_bin="$target_home/.local/bin/claude"
 
     # Check if already installed
@@ -268,7 +305,8 @@ install_claude_code() {
 # Upgrade Claude Code to latest version
 upgrade_claude_code() {
     local target_user="${TARGET_USER:-ubuntu}"
-    local target_home="${TARGET_HOME:-/home/$target_user}"
+    local target_home=""
+    target_home="$(_agent_target_home "$target_user")"
     local claude_bin="$target_home/.local/bin/claude"
 
     if [[ -x "$claude_bin" ]]; then
@@ -304,7 +342,8 @@ upgrade_claude_code() {
 # The official package is @openai/codex
 install_codex_cli() {
     local target_user="${TARGET_USER:-ubuntu}"
-    local target_home="${TARGET_HOME:-/home/$target_user}"
+    local target_home=""
+    target_home="$(_agent_target_home "$target_user")"
     local bun_bin
     bun_bin=$(_agent_get_bun_bin)
     local codex_bin="$target_home/.bun/bin/$CODEX_BIN"
@@ -478,7 +517,8 @@ GEMINI_EOF"
 # The official package is @google/gemini-cli
 install_gemini_cli() {
     local target_user="${TARGET_USER:-ubuntu}"
-    local target_home="${TARGET_HOME:-/home/$target_user}"
+    local target_home=""
+    target_home="$(_agent_target_home "$target_user")"
     local bun_bin
     bun_bin=$(_agent_get_bun_bin)
     local gemini_bin="$target_home/.bun/bin/$GEMINI_BIN"
@@ -557,7 +597,8 @@ upgrade_gemini_cli() {
 # Verify all coding agents are installed
 verify_agents() {
     local target_user="${TARGET_USER:-ubuntu}"
-    local target_home="${TARGET_HOME:-/home/$target_user}"
+    local target_home=""
+    target_home="$(_agent_target_home "$target_user")"
     local bun_bin_dir="$target_home/.bun/bin"
     local all_pass=true
 
@@ -611,7 +652,8 @@ verify_agents() {
 # Check if agents are authenticated/logged in
 check_agent_auth() {
     local target_user="${TARGET_USER:-ubuntu}"
-    local target_home="${TARGET_HOME:-/home/$target_user}"
+    local target_home=""
+    target_home="$(_agent_target_home "$target_user")"
 
     log_detail "Checking agent authentication status..."
 
@@ -681,7 +723,8 @@ check_agent_auth() {
 # Get versions of installed agents (for doctor output)
 get_agent_versions() {
     local target_user="${TARGET_USER:-ubuntu}"
-    local target_home="${TARGET_HOME:-/home/$target_user}"
+    local target_home=""
+    target_home="$(_agent_target_home "$target_user")"
     local bun_bin_dir="$target_home/.bun/bin"
     local claude_native_bin="$target_home/.local/bin/claude"
 
