@@ -211,3 +211,105 @@ EOF
     assert_output --partial "$ACFS_HOME/scripts/lib/security.sh"
     refute_output --partial "    - /scripts/lib/security.sh"
 }
+
+@test "update_atuin: falls back to reinstall after failed self-update" {
+    init_stub_dir
+    export PATH="$STUB_DIR:$PATH"
+    export ACFS_UPDATE_RETRY_MAX_ATTEMPTS=1
+    export ACFS_UPDATE_RETRY_SLEEP_SECONDS=0
+    QUIET=true
+    VERBOSE=false
+    DRY_RUN=false
+    YES_MODE=false
+    ABORT_ON_FAILURE=false
+    UPDATE_LOG_FILE="$HOME/update.log"
+    SUCCESS_COUNT=0
+    FAIL_COUNT=0
+    SKIP_COUNT=0
+
+    cat > "$STUB_DIR/atuin" <<'EOF'
+#!/usr/bin/env bash
+case "${1:-}" in
+  --help)
+    echo "self-update"
+    ;;
+  self-update)
+    echo "curl: (28) operation timed out" >&2
+    exit 1
+    ;;
+  --version)
+    echo "atuin 1.0.0"
+    ;;
+  *)
+    echo "atuin 1.0.0"
+    ;;
+esac
+EOF
+    chmod +x "$STUB_DIR/atuin"
+
+    update_require_security() {
+        return 0
+    }
+
+    update_run_verified_installer() {
+        : > "$HOME/atuin-reinstall-ran"
+        return 0
+    }
+
+    update_atuin
+
+    [[ -f "$HOME/atuin-reinstall-ran" ]]
+    [[ "$SUCCESS_COUNT" -eq 1 ]]
+    [[ "$FAIL_COUNT" -eq 0 ]]
+}
+
+@test "update_zoxide: retries transient reinstall failures before succeeding" {
+    init_stub_dir
+    export PATH="$STUB_DIR:$PATH"
+    export ACFS_UPDATE_RETRY_MAX_ATTEMPTS=2
+    export ACFS_UPDATE_RETRY_SLEEP_SECONDS=0
+    QUIET=true
+    VERBOSE=false
+    DRY_RUN=false
+    YES_MODE=false
+    ABORT_ON_FAILURE=false
+    UPDATE_LOG_FILE="$HOME/update.log"
+    SUCCESS_COUNT=0
+    FAIL_COUNT=0
+    SKIP_COUNT=0
+
+    cat > "$STUB_DIR/zoxide" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "--version" ]]; then
+  echo "zoxide 0.9.9"
+else
+  echo "zoxide 0.9.9"
+fi
+EOF
+    chmod +x "$STUB_DIR/zoxide"
+
+    update_require_security() {
+        return 0
+    }
+
+    update_run_verified_installer() {
+        local attempts_file="$HOME/zoxide-attempts"
+        local attempts=0
+        if [[ -f "$attempts_file" ]]; then
+            attempts="$(cat "$attempts_file")"
+        fi
+        attempts=$((attempts + 1))
+        printf '%s\n' "$attempts" > "$attempts_file"
+        if [[ "$attempts" -lt 2 ]]; then
+            echo "download failed: rate limit exceeded" >&2
+            return 1
+        fi
+        return 0
+    }
+
+    update_zoxide
+
+    [[ "$(cat "$HOME/zoxide-attempts")" == "2" ]]
+    [[ "$SUCCESS_COUNT" -eq 1 ]]
+    [[ "$FAIL_COUNT" -eq 0 ]]
+}

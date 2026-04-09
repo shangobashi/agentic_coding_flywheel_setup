@@ -600,7 +600,7 @@ run_cmd_bun_with_retry() {
 
         # Check for transient errors that warrant a retry
         local is_transient=false
-        if echo "$output" | grep -qiE "failed to map segment|ENOENT|EACCES|EAGAIN|Connection reset|timed out|rate limit|503|502|500"; then
+        if update_is_transient_failure_output "$output"; then
             is_transient=true
         fi
 
@@ -648,6 +648,145 @@ run_cmd_bun_with_retry() {
         exit 1
     fi
     return 0
+}
+
+update_is_transient_failure_output() {
+    local output="${1:-}"
+
+    [[ -n "$output" ]] || return 1
+
+    printf '%s\n' "$output" | grep -qiE \
+        'failed to map segment|ENOENT|EACCES|EAGAIN|Connection reset|timed out|rate limit|too many requests|429|503|502|500|TLS|temporary failure|connection refused|reset by peer|network is unreachable|could not resolve host|curl:|wget:|failed to download|download.*failed'
+}
+
+update_retry_sleep_seconds() {
+    local attempt="${1:-1}"
+
+    if [[ -n "${ACFS_UPDATE_RETRY_SLEEP_SECONDS:-}" ]]; then
+        printf '%s\n' "$ACFS_UPDATE_RETRY_SLEEP_SECONDS"
+        return 0
+    fi
+
+    printf '%s\n' "$((attempt * 2))"
+}
+
+_run_cmd_with_retry_internal() {
+    local desc="$1"
+    local failure_mode="$2"
+    shift 2
+
+    local max_attempts="${ACFS_UPDATE_RETRY_MAX_ATTEMPTS:-3}"
+    local attempt=1
+    local exit_code=0
+    local output=""
+    local cmd_display=""
+    cmd_display=$(printf '%q ' "$@")
+
+    log_to_file "Running (with retry): $cmd_display"
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log_item "skip" "$desc" "dry-run: $cmd_display"
+        return 0
+    fi
+
+    log_item "run" "$desc"
+
+    while [[ $attempt -le $max_attempts ]]; do
+        exit_code=0
+        output=""
+
+        if [[ "$VERBOSE" == "true" ]]; then
+            if [[ -n "${UPDATE_LOG_FILE:-}" ]]; then
+                {
+                    echo ""
+                    echo "----- COMMAND (attempt $attempt/$max_attempts): $cmd_display"
+                } >> "$UPDATE_LOG_FILE"
+            fi
+
+            if [[ "$QUIET" != "true" ]] && [[ -n "${UPDATE_LOG_FILE:-}" ]]; then
+                output=$("$@" 2>&1 | tee -a "$UPDATE_LOG_FILE") || exit_code=${PIPESTATUS[0]}
+            elif [[ -n "${UPDATE_LOG_FILE:-}" ]]; then
+                output=$("$@" 2>&1) || exit_code=$?
+                [[ -n "$output" ]] && echo "$output" >> "$UPDATE_LOG_FILE"
+            else
+                output=$("$@" 2>&1) || exit_code=$?
+            fi
+        else
+            output=$("$@" 2>&1) || exit_code=$?
+            [[ -n "$output" ]] && log_to_file "Output: $output"
+        fi
+
+        if [[ $exit_code -eq 0 ]]; then
+            if [[ "$QUIET" != "true" ]] && [[ "$VERBOSE" != "true" ]]; then
+                printf "\033[1A\033[2K  ${GREEN}[ok]${NC} %s\n" "$desc"
+            elif [[ "$QUIET" != "true" ]]; then
+                printf "  ${GREEN}[ok]${NC} %s\n" "$desc"
+            fi
+            log_to_file "Success: $desc"
+            ((SUCCESS_COUNT += 1))
+            return 0
+        fi
+
+        if update_is_transient_failure_output "$output" && [[ $attempt -lt $max_attempts ]]; then
+            local sleep_secs
+            sleep_secs="$(update_retry_sleep_seconds "$attempt")"
+            log_to_file "Transient error detected, retrying in ${sleep_secs}s (attempt $attempt/$max_attempts)"
+
+            if [[ "$QUIET" != "true" ]] && [[ "$VERBOSE" != "true" ]]; then
+                printf "\033[1A\033[2K  ${YELLOW}[retry]${NC} %s (attempt %d/%d)\n" "$desc" "$attempt" "$max_attempts"
+            elif [[ "$QUIET" != "true" ]]; then
+                printf "  ${YELLOW}[retry]${NC} %s (attempt %d/%d)\n" "$desc" "$attempt" "$max_attempts"
+            fi
+
+            sleep "$sleep_secs"
+            ((attempt += 1))
+
+            if [[ "$QUIET" != "true" ]] && [[ "$VERBOSE" != "true" ]]; then
+                log_item "run" "$desc"
+            fi
+            continue
+        fi
+
+        break
+    done
+
+    if [[ "$failure_mode" == "fallback" ]]; then
+        if [[ "$QUIET" != "true" ]] && [[ "$VERBOSE" != "true" ]]; then
+            printf "\033[1A\033[2K  ${YELLOW}[retry]${NC} %s\n" "$desc"
+        elif [[ "$QUIET" != "true" ]]; then
+            printf "  ${YELLOW}[retry]${NC} %s\n" "$desc"
+        fi
+        log_to_file "Failed: $desc (exit code: $exit_code after $attempt attempts), will try fallback"
+        return "$exit_code"
+    fi
+
+    if [[ "$QUIET" != "true" ]] && [[ "$VERBOSE" != "true" ]]; then
+        printf "\033[1A\033[2K  ${RED}[fail]${NC} %s\n" "$desc"
+    else
+        printf "  ${RED}[fail]${NC} %s\n" "$desc"
+    fi
+    log_to_file "Failed: $desc (exit code: $exit_code after $attempt attempts)"
+    ((FAIL_COUNT += 1))
+
+    if [[ "$ABORT_ON_FAILURE" == "true" ]]; then
+        echo -e "${RED}Aborting due to failure (--abort-on-failure)${NC}"
+        log_to_file "ABORT: Stopping due to --abort-on-failure"
+        exit 1
+    fi
+
+    return "$exit_code"
+}
+
+run_cmd_with_retry_status() {
+    local desc="$1"
+    shift
+    _run_cmd_with_retry_internal "$desc" "fail" "$@"
+}
+
+run_cmd_attempt_with_retry() {
+    local desc="$1"
+    shift
+    _run_cmd_with_retry_internal "$desc" "fallback" "$@"
 }
 
 # Check if command exists
@@ -3099,28 +3238,35 @@ update_atuin() {
     fi
 
     capture_version_before "atuin"
+    local needs_reinstall=false
 
     # Try atuin self-update first (available in newer versions)
     if atuin --help 2>&1 | grep -q "self-update"; then
-        run_cmd "Atuin self-update" atuin self-update
-
-        # If self-update succeeded, check whether version is now current;
-        # skip the heavier reinstall path to avoid a stalling curl download.
-        local ver_after
-        ver_after=$(get_version "atuin")
-        if [[ -n "$ver_after" && "$ver_after" != "unknown" ]]; then
-            log_to_file "Atuin self-update succeeded (version: $ver_after), skipping reinstall"
-        else
-            # self-update ran but we can't determine version — fall through
-            log_to_file "Atuin self-update ran but version check inconclusive, trying reinstall"
-            if update_require_security; then
-                run_cmd "Atuin (reinstall)" update_run_verified_installer atuin --non-interactive
+        if run_cmd_attempt_with_retry "Atuin self-update" atuin self-update; then
+            # If self-update succeeded, check whether version is now current;
+            # skip the heavier reinstall path to avoid a stalling curl download.
+            local ver_after
+            ver_after=$(get_version "atuin")
+            if [[ -n "$ver_after" && "$ver_after" != "unknown" ]]; then
+                log_to_file "Atuin self-update succeeded (version: $ver_after), skipping reinstall"
+            else
+                # self-update ran but we can't determine version — fall through
+                log_to_file "Atuin self-update ran but version check inconclusive, trying reinstall"
+                needs_reinstall=true
             fi
+        else
+            log_to_file "Atuin self-update failed, trying reinstall"
+            needs_reinstall=true
         fi
     else
-        # Fallback to reinstall via official installer with checksum verification
+        needs_reinstall=true
+    fi
+
+    if [[ "$needs_reinstall" == "true" ]]; then
         if update_require_security; then
-            run_cmd "Atuin (reinstall)" update_run_verified_installer atuin --non-interactive
+            if ! run_cmd_with_retry_status "Atuin (reinstall)" update_run_verified_installer atuin --non-interactive; then
+                :
+            fi
         else
             # Last resort: no checksum verification available
             if [[ "$YES_MODE" == "true" ]]; then
@@ -3157,7 +3303,9 @@ update_zoxide() {
 
     # Zoxide doesn't have self-update, reinstall via official installer
     if update_require_security; then
-        run_cmd "Zoxide (reinstall)" update_run_verified_installer zoxide
+        if ! run_cmd_with_retry_status "Zoxide (reinstall)" update_run_verified_installer zoxide; then
+            :
+        fi
     else
         # Last resort: no checksum verification available
         if [[ "$YES_MODE" == "true" ]]; then

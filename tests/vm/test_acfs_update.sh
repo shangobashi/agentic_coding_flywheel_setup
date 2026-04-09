@@ -549,17 +549,17 @@ EOF
 
             # Verify a wrapper installed under a nonstandard passwd home
             # dispatches to its own adjacent ACFS tree instead of a generic
-            # /home/* scan or some other user's install.
+            # /home/* scan or some other user install.
             echo ""
             echo "Verifying nonstandard-home acfs-update wrapper dispatch..."
             useradd -m -d /srv/acfs-alt -s /bin/bash altuser
             mkdir -p /srv/acfs-alt/.local/bin /srv/acfs-alt/.acfs/bin /srv/acfs-alt/.acfs/scripts/lib
             cp /home/ubuntu/.local/bin/acfs-update /srv/acfs-alt/.local/bin/acfs-update
             cp /home/ubuntu/.acfs/bin/acfs-update /srv/acfs-alt/.acfs/bin/acfs-update
-            cat > /srv/acfs-alt/.acfs/state.json <<'"'"'EOF'"'"'
+            cat > /srv/acfs-alt/.acfs/state.json <<EOF
 {"target_user":"altuser","target_home":"/srv/acfs-alt"}
 EOF
-            cat > /srv/acfs-alt/.acfs/scripts/lib/update.sh <<'"'"'EOF'"'"'
+            cat > /srv/acfs-alt/.acfs/scripts/lib/update.sh <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
 printf "wrapper-user=%s\n" "$(whoami)"
