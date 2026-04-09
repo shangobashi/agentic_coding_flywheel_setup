@@ -556,10 +556,10 @@ EOF
             mkdir -p /srv/acfs-alt/.local/bin /srv/acfs-alt/.acfs/bin /srv/acfs-alt/.acfs/scripts/lib
             cp /home/ubuntu/.local/bin/acfs-update /srv/acfs-alt/.local/bin/acfs-update
             cp /home/ubuntu/.acfs/bin/acfs-update /srv/acfs-alt/.acfs/bin/acfs-update
-            cat > /srv/acfs-alt/.acfs/state.json <<EOF
+            cat > /srv/acfs-alt/.acfs/state.json <<\EOF
 {"target_user":"altuser","target_home":"/srv/acfs-alt"}
 EOF
-            cat > /srv/acfs-alt/.acfs/scripts/lib/update.sh <<EOF
+            cat > /srv/acfs-alt/.acfs/scripts/lib/update.sh <<\EOF
 #!/usr/bin/env bash
 set -euo pipefail
 printf "wrapper-user=%s\n" "$(whoami)"
