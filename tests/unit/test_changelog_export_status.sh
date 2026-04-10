@@ -918,7 +918,12 @@ test_doctor_dispatches_installed_layout_under_root_home() {
 test_doctor_agent_checks_use_target_context_under_root_home() {
     setup_installed_layout_env
 
-    mkdir -p "$TEST_INSTALLED_ACFS/zsh" "$TEST_TARGET_HOME/.claude"
+    mkdir -p \
+        "$TEST_INSTALLED_ACFS/zsh" \
+        "$TEST_TARGET_HOME/.claude" \
+        "$TEST_TARGET_HOME/.oh-my-zsh/custom/themes/powerlevel10k" \
+        "$TEST_TARGET_HOME/.oh-my-zsh/custom/plugins/zsh-autosuggestions" \
+        "$TEST_TARGET_HOME/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting"
     cat > "$TEST_INSTALLED_ACFS/zsh/acfs.zshrc" <<'EOF'
 alias cc='claude'
 alias cod='codex'
@@ -944,17 +949,23 @@ EOF
 JSON
 
     write_fake_command "$TEST_TARGET_HOME/.local/bin/dcg" "dcg 1.2.3"
+    write_fake_command "$TEST_TARGET_HOME/.local/bin/rch" "rch 1.2.3"
 
     local output=""
     output=$(HOME="$TEST_ROOT_HOME" PATH="$TEST_FAKE_BIN:/usr/bin:/bin" \
         bash "$TEST_INSTALLED_ACFS/bin/acfs" doctor --json)
 
     if printf '%s\n' "$output" | jq -e --arg native_path "$TEST_TARGET_HOME/.local/bin/claude" '
+        ([.checks[] | select(.id == "shell.ohmyzsh") | .status] | first) == "pass" and
+        ([.checks[] | select(.id == "shell.p10k") | .status] | first) == "pass" and
+        ([.checks[] | select(.id == "shell.plugins.zsh_autosuggestions") | .status] | first) == "pass" and
+        ([.checks[] | select(.id == "shell.plugins.zsh_syntax_highlighting") | .status] | first) == "pass" and
         ([.checks[] | select(.id == "agent.alias.cc") | .status] | first) == "pass" and
         ([.checks[] | select(.id == "agent.alias.cod") | .status] | first) == "pass" and
         ([.checks[] | select(.id == "agent.alias.gmi") | .status] | first) == "pass" and
         ([.checks[] | select(.id == "agent.path.claude") | .details] | first) == ("native (" + $native_path + ")") and
-        ([.checks[] | select(.id == "stack.dcg") | .status] | first) == "pass"
+        ([.checks[] | select(.id == "stack.dcg") | .status] | first) == "pass" and
+        ([.checks[] | select(.id == "stack.rch") | .status] | first) == "pass"
     ' >/dev/null 2>&1; then
         harness_pass "doctor agent checks use installed target context under root home"
     else

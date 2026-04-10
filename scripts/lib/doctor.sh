@@ -1111,16 +1111,21 @@ check_workspace() {
 # Check shell
 check_shell() {
     section "Shell"
+    local runtime_home=""
+    local zsh_custom=""
+
+    runtime_home="$(doctor_runtime_home)"
+    zsh_custom="${ZSH_CUSTOM:-$runtime_home/.oh-my-zsh/custom}"
 
     check_command "shell.zsh" "zsh" "zsh" "sudo apt install zsh"
 
-    if [[ -d "$HOME/.oh-my-zsh" ]]; then
+    if [[ -d "$runtime_home/.oh-my-zsh" ]]; then
         check "shell.ohmyzsh" "Oh My Zsh" "pass"
     else
         check "shell.ohmyzsh" "Oh My Zsh" "fail" "not installed" "$(fix_for_module "shell.omz")"
     fi
 
-    local p10k_dir="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k"
+    local p10k_dir="$zsh_custom/themes/powerlevel10k"
     if [[ -d "$p10k_dir" ]]; then
         check "shell.p10k" "Powerlevel10k" "pass"
     else
@@ -1128,7 +1133,7 @@ check_shell() {
     fi
 
     # Check plugins
-    local plugins_dir="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/plugins"
+    local plugins_dir="$zsh_custom/plugins"
     if [[ -d "$plugins_dir/zsh-autosuggestions" ]]; then
         check "shell.plugins.zsh_autosuggestions" "zsh-autosuggestions" "pass"
     else
@@ -1527,8 +1532,10 @@ check_stack() {
                 fi
             fi
         fi
-    elif [[ -d "$HOME/mcp_agent_mail" ]]; then
-        if [[ -x "$HOME/mcp_agent_mail/am" ]] && ! command -v am &>/dev/null; then
+    elif [[ -d "$(doctor_runtime_home)/mcp_agent_mail" ]]; then
+        local runtime_home=""
+        runtime_home="$(doctor_runtime_home)"
+        if [[ -x "$runtime_home/mcp_agent_mail/am" ]] && ! command -v am &>/dev/null; then
             check "symlink.am" "$am_label" "warn" \
                 "binary exists at ~/mcp_agent_mail/am but symlink missing from ~/.local/bin/am" \
                 "Fix: ln -sf ~/mcp_agent_mail/am ~/.local/bin/am (or run: acfs doctor --fix)"
@@ -1608,15 +1615,17 @@ check_stack() {
     # RCH can be installed in several locations: PATH, ~/.local/bin, ~/.cargo/bin, or ~/remote_compilation_helper
     local rch_bin=""
     local rch_version=""
+    local runtime_home=""
+    runtime_home="$(doctor_runtime_home)"
 
     if command -v rch &>/dev/null; then
         rch_bin="$(command -v rch)"
-    elif [[ -x "$HOME/.local/bin/rch" ]]; then
-        rch_bin="$HOME/.local/bin/rch"
-    elif [[ -x "$HOME/.cargo/bin/rch" ]]; then
-        rch_bin="$HOME/.cargo/bin/rch"
-    elif [[ -x "$HOME/remote_compilation_helper/rch" ]]; then
-        rch_bin="$HOME/remote_compilation_helper/rch"
+    elif [[ -x "$runtime_home/.local/bin/rch" ]]; then
+        rch_bin="$runtime_home/.local/bin/rch"
+    elif [[ -x "$runtime_home/.cargo/bin/rch" ]]; then
+        rch_bin="$runtime_home/.cargo/bin/rch"
+    elif [[ -x "$runtime_home/remote_compilation_helper/rch" ]]; then
+        rch_bin="$runtime_home/remote_compilation_helper/rch"
     fi
 
     if [[ -n "$rch_bin" ]] && [[ -x "$rch_bin" ]]; then
@@ -1624,7 +1633,7 @@ check_stack() {
         check "stack.rch" "rch ($rch_version)" "pass" "installed"
     else
         # Also check if RCH config exists (indicates partial/previous install)
-        if [[ -f "$HOME/.config/rch/config.toml" ]] || [[ -d "$HOME/remote_compilation_helper" ]]; then
+        if [[ -f "$runtime_home/.config/rch/config.toml" ]] || [[ -d "$runtime_home/remote_compilation_helper" ]]; then
             check "stack.rch" "rch (Remote Compilation Helper)" "warn" "config exists but binary not in PATH" \
                 "Add rch to PATH or re-run: curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/remote_compilation_helper/main/install.sh | bash"
         else
