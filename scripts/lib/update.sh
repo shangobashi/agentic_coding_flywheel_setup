@@ -2994,14 +2994,14 @@ EOF
     # ASCII Art Diagram Corrector (aadc) - update when installed, or install with --force
     if cmd_exists aadc || [[ "$FORCE_MODE" == "true" ]]; then
         capture_version_before "aadc"
-        run_cmd "AADC" bash -c 'TMPDIR="$(mktemp -d)"; trap "rm -rf \"$TMPDIR\"" EXIT; git clone --depth 1 https://github.com/Dicklesworthstone/aadc.git "$TMPDIR/aadc" && cd "$TMPDIR/aadc" && cargo build --release && cp target/release/aadc ~/.cargo/bin/'
+        run_cmd "AADC" bash -c 'ACFS_TMP_DIR="$(mktemp -d)"; trap "rm -rf \"$ACFS_TMP_DIR\"" EXIT; git clone --depth 1 https://github.com/Dicklesworthstone/aadc.git "$ACFS_TMP_DIR/aadc" && cd "$ACFS_TMP_DIR/aadc" && cargo build --release && cp target/release/aadc ~/.cargo/bin/'
         capture_version_after "aadc"
     fi
 
     # Rust Proxy (rust_proxy) - update when installed, or install with --force
     if cmd_exists rust_proxy || [[ "$FORCE_MODE" == "true" ]]; then
         capture_version_before "rust_proxy"
-        run_cmd "Rust Proxy" bash -c 'TMPDIR="$(mktemp -d)"; trap "rm -rf \"$TMPDIR\"" EXIT; git clone --depth 1 https://github.com/Dicklesworthstone/rust_proxy.git "$TMPDIR/rust_proxy" && cd "$TMPDIR/rust_proxy" && cargo build --release && cp target/release/rust_proxy ~/.cargo/bin/'
+        run_cmd "Rust Proxy" bash -c 'ACFS_TMP_DIR="$(mktemp -d)"; trap "rm -rf \"$ACFS_TMP_DIR\"" EXIT; git clone --depth 1 https://github.com/Dicklesworthstone/rust_proxy.git "$ACFS_TMP_DIR/rust_proxy" && cd "$ACFS_TMP_DIR/rust_proxy" && cargo build --release && cp target/release/rust_proxy ~/.cargo/bin/'
         capture_version_after "rust_proxy"
     fi
 

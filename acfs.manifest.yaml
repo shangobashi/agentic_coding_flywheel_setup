@@ -2745,10 +2745,10 @@ modules:
     install:
       - |
         # Build rust_proxy from source (no install.sh available)
-        TMPDIR="$(mktemp -d)"
-        trap 'rm -rf "$TMPDIR"' EXIT
-        git clone --depth 1 https://github.com/Dicklesworthstone/rust_proxy.git "$TMPDIR/rust_proxy"
-        cd "$TMPDIR/rust_proxy"
+        ACFS_TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/acfs_proxy.XXXXXX")"
+        trap 'rm -rf "$ACFS_TMP_DIR"' EXIT
+        git clone --depth 1 https://github.com/Dicklesworthstone/rust_proxy.git "$ACFS_TMP_DIR/rust_proxy"
+        cd "$ACFS_TMP_DIR/rust_proxy"
         cargo build --release
         cp target/release/rust_proxy ~/.cargo/bin/
     verify:
@@ -2835,10 +2835,10 @@ modules:
     install:
       - |
         # Build caut from source (no install.sh available)
-        TMPDIR="$(mktemp -d)"
-        trap 'rm -rf "$TMPDIR"' EXIT
-        git clone --depth 1 https://github.com/Dicklesworthstone/coding_agent_usage_tracker.git "$TMPDIR/caut"
-        cd "$TMPDIR/caut"
+        ACFS_TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/acfs_caut.XXXXXX")"
+        trap 'rm -rf "$ACFS_TMP_DIR"' EXIT
+        git clone --depth 1 https://github.com/Dicklesworthstone/coding_agent_usage_tracker.git "$ACFS_TMP_DIR/caut"
+        cd "$ACFS_TMP_DIR/caut"
         cargo build --release
         cp target/release/caut ~/.cargo/bin/
     verify:

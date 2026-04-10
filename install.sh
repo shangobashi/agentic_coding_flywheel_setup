@@ -963,6 +963,10 @@ cleanup() {
         rm -rf "$ACFS_TMP_SLB" 2>/dev/null || true
     fi
 
+    if [[ -n "${ACFS_TMP_INSTALL:-}" ]] && [[ -f "$ACFS_TMP_INSTALL" ]]; then
+        rm -f "$ACFS_TMP_INSTALL" 2>/dev/null || true
+    fi
+
     # If a signal triggered this cleanup, mark state as interrupted so
     # resume logic does not see a partially-started phase.
     if [[ -n "${_ACFS_SIGNAL_RECEIVED:-}" ]]; then
@@ -5025,13 +5029,12 @@ NTM_CONFIG_EOF
         if [[ -z "$url" ]] || [[ -z "$expected_sha256" ]]; then
             log_error "MCP Agent Mail: missing installer URL/checksum"
         else
-            local tmp_install
-            tmp_install="$(mktemp "${TMPDIR:-/tmp}/acfs-install-${tool}.XXXXXX" 2>/dev/null)" || tmp_install=""
+            ACFS_TMP_INSTALL="$(mktemp "${TMPDIR:-/tmp}/acfs-install-${tool}.XXXXXX" 2>/dev/null)" || ACFS_TMP_INSTALL=""
 
-            if [[ -n "$tmp_install" ]] && verify_checksum "$url" "$expected_sha256" "$tool" > "$tmp_install"; then
-                chmod 755 "$tmp_install" 2>/dev/null || true
+            if [[ -n "$ACFS_TMP_INSTALL" ]] && verify_checksum "$url" "$expected_sha256" "$tool" > "$ACFS_TMP_INSTALL"; then
+                chmod 755 "$ACFS_TMP_INSTALL" 2>/dev/null || true
 
-                if try_step "Installing MCP Agent Mail" run_as_target bash "$tmp_install" --dest "$target_dir" --yes; then
+                if try_step "Installing MCP Agent Mail" run_as_target bash "$ACFS_TMP_INSTALL" --dest "$target_dir" --yes; then
                     # Symlink repair: if the binary exists at the install dest but
                     # is not reachable via PATH, create a symlink in ~/.local/bin.
                     # This fixes the case where the installer placed the binary in
@@ -5180,9 +5183,11 @@ UNIT_EOF
                 else
                     log_error "MCP Agent Mail installation may have failed"
                 fi
-                rm -f "$tmp_install" 2>/dev/null || true
+                rm -f "$ACFS_TMP_INSTALL" 2>/dev/null || true
+                ACFS_TMP_INSTALL=""
             else
-                rm -f "$tmp_install" 2>/dev/null || true
+                rm -f "$ACFS_TMP_INSTALL" 2>/dev/null || true
+                ACFS_TMP_INSTALL=""
                 log_error "MCP Agent Mail: installer verification failed"
             fi
         fi

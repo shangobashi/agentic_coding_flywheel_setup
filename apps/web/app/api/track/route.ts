@@ -506,8 +506,10 @@ export async function POST(request: NextRequest) {
       clearTimeout(timeout);
     }
 
-    if (!response.ok) {
-      console.error('GA4 MP error:', response.status, await response.text());
+    if (!response || !response.ok) {
+      const status = response ? response.status : 504;
+      const text = response ? await response.text() : 'Timeout or network error';
+      console.error('GA4 MP error:', status, text);
       return NextResponse.json(
         { error: 'Failed to send to analytics' },
         { status: 502 }

@@ -12,7 +12,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn, copyTextToClipboard } from "@/lib/utils";
 import {
   useVPSIP,
   useUserOS,
@@ -70,25 +70,7 @@ function CommandRow({
   }, []);
 
   const handleCopy = useCallback(async () => {
-    let copiedOk = false;
-    try {
-      await navigator.clipboard.writeText(command);
-      copiedOk = true;
-    } catch {
-      const ta = document.createElement("textarea");
-      ta.value = command;
-      ta.style.position = "fixed";
-      ta.style.opacity = "0";
-      document.body.appendChild(ta);
-      try {
-        ta.select();
-        copiedOk = document.execCommand("copy");
-      } catch {
-        copiedOk = false;
-      } finally {
-        document.body.removeChild(ta);
-      }
-    }
+    const copiedOk = await copyTextToClipboard(command);
     if (!copiedOk) {
       return;
     }
@@ -249,25 +231,7 @@ export function CommandBuilderPanel() {
       mode,
       ref: effectiveRef,
     });
-    let copied = false;
-    try {
-      await navigator.clipboard.writeText(url);
-      copied = true;
-    } catch {
-      const ta = document.createElement("textarea");
-      ta.value = url;
-      ta.style.position = "fixed";
-      ta.style.opacity = "0";
-      document.body.appendChild(ta);
-      try {
-        ta.select();
-        copied = document.execCommand("copy");
-      } catch {
-        copied = false;
-      } finally {
-        document.body.removeChild(ta);
-      }
-    }
+    const copied = await copyTextToClipboard(url);
     if (!copied) {
       return;
     }

@@ -278,11 +278,10 @@ test.describe("SSH Connect Page - Critical Bug Prevention", () => {
   });
 
   test("should redirect to create-vps when IP is missing", async ({ page }) => {
-    // Set up only OS, not IP
-    await page.goto("/");
-    await page.evaluate(() => {
-      localStorage.clear();
-      localStorage.setItem("agent-flywheel-user-os", "mac");
+    // Set up OS and completed steps, but no IP
+    await setupWizardState(page, {
+      os: "mac",
+      completedSteps: [1, 2, 3, 4, 5]
     });
 
     // Navigate to SSH connect page
@@ -971,7 +970,10 @@ test.describe("Step 10: Reconnect Ubuntu Page", () => {
   });
 
   test("should redirect to create-vps when IP is missing", async ({ page }) => {
-    await setupWizardState(page, { os: "mac" }); // No IP
+    await setupWizardState(page, {
+      os: "mac",
+      completedSteps: [1, 2, 3, 4, 5, 6, 7, 8, 9]
+    }); // No IP
 
     await page.goto("/wizard/reconnect-ubuntu");
 
