@@ -117,11 +117,11 @@ write_atomic() {
         log_error "Failed to create temp file for atomic write: $target_file"
         return 1
     }
+    trap 'rm -f "$temp_file" 2>/dev/null || true' RETURN
 
     # Write content to temp file
     if ! printf '%s\n' "$content" > "$temp_file"; then
         log_error "Failed to write temp file: $temp_file"
-        rm -f "$temp_file"
         return 1
     fi
 
@@ -133,7 +133,6 @@ write_atomic() {
     # Atomic rename
     if ! mv "$temp_file" "$target_file"; then
         log_error "Failed to move temp file into place: $target_file"
-        rm -f "$temp_file"
         return 1
     fi
 
@@ -157,18 +156,17 @@ append_atomic() {
         log_error "Failed to create temp file for atomic append: $target_file"
         return 1
     }
+    trap 'rm -f "$temp_file" 2>/dev/null || true' RETURN
 
     # Copy existing content + new line to temp
     if [[ -f "$target_file" ]]; then
         cat "$target_file" > "$temp_file" || { 
             log_error "Failed to copy existing content to temp file: $temp_file"
-            rm -f "$temp_file"
             return 1
         }
     fi
     if ! printf '%s\n' "$content" >> "$temp_file"; then
         log_error "Failed to append content to temp file: $temp_file"
-        rm -f "$temp_file"
         return 1
     fi
 
@@ -179,7 +177,6 @@ append_atomic() {
 
     if ! mv "$temp_file" "$target_file"; then
         log_error "Failed to move temp file into place: $target_file"
-        rm -f "$temp_file"
         return 1
     fi
 
@@ -299,6 +296,7 @@ repair_state_files() {
             log_error "Failed to create temp file for changes repair"
             return 1
         }
+        trap 'rm -f "$temp_file" 2>/dev/null || true' RETURN
         while IFS= read -r line; do
             [[ -z "$line" ]] && continue
             if echo "$line" | jq -e . >/dev/null 2>&1; then
@@ -324,7 +322,7 @@ repair_state_files() {
             fsync_file "$ACFS_CHANGES_FILE"
             log_info "[REPAIR] Removed $repaired invalid lines from changes.jsonl"
         else
-            rm -f "$temp_file"
+            rm -f "$temp_file" 2>/dev/null || true
         fi
     fi
 
@@ -335,6 +333,7 @@ repair_state_files() {
             log_error "Failed to create temp file for undos repair"
             return 1
         }
+        trap 'rm -f "$temp_file" 2>/dev/null || true' RETURN
         while IFS= read -r line; do
             [[ -z "$line" ]] && continue
             if echo "$line" | jq -e . >/dev/null 2>&1; then
