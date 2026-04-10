@@ -1233,6 +1233,47 @@ EOF
     cleanup_mock_env
 }
 
+test_onboard_copy_install_uses_system_state_under_root_home() {
+    setup_mock_env
+
+    local root_home="$TEST_HOME/root-home"
+    local target_home="$TEST_HOME/users/tester"
+    local installed_acfs="$target_home/.acfs"
+    local system_state="$TEST_HOME/system-state/state.json"
+
+    mkdir -p "$root_home/.local/bin" "$installed_acfs/onboard/lessons" "$installed_acfs/scripts/lib" "$(dirname "$system_state")"
+    cp "$ONBOARD_SH" "$root_home/.local/bin/onboard"
+    chmod +x "$root_home/.local/bin/onboard"
+    cp "$CHEATSHEET_SH" "$installed_acfs/scripts/lib/cheatsheet.sh"
+
+    cat > "$installed_acfs/onboard/lessons/01_intro.md" <<'EOF'
+# Intro
+
+hello
+EOF
+
+    cat > "$system_state" <<EOF
+{
+  "target_user": "tester",
+  "target_home": "$target_home"
+}
+EOF
+
+    local output=""
+    output=$(HOME="$root_home" ACFS_SYSTEM_STATE_FILE="$system_state" PATH="$root_home/.local/bin:/usr/bin:/bin" \
+        onboard status 2>&1)
+
+    if [[ -f "$installed_acfs/onboard_progress.json" ]] \
+        && [[ ! -e "$root_home/.acfs/onboard_progress.json" ]] \
+        && [[ "$output" != *"No lessons available"* ]]; then
+        harness_pass "copied onboard binary uses system state under root home"
+    else
+        harness_fail "copied onboard binary uses system state under root home" "$output"
+    fi
+
+    cleanup_mock_env
+}
+
 main() {
     harness_init "ACFS Changelog/Export/Status Tests"
 
@@ -1291,6 +1332,7 @@ main() {
     test_onboard_accepts_sparse_lesson_numbers || true
     test_onboard_uses_installed_layout_under_root_home || true
     test_onboard_cheatsheet_uses_installed_layout_under_root_home || true
+    test_onboard_copy_install_uses_system_state_under_root_home || true
 
     harness_section "Entrypoint Dispatch"
     test_doctor_entrypoint_dispatches_helper_commands || true
