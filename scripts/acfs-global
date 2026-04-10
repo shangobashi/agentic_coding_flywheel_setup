@@ -88,6 +88,45 @@ read_target_home_from_state_file() {
     return 1
 }
 
+find_acfs_bin_from_state_file() {
+    local state_file="$1"
+    local state_home=""
+    local target_home=""
+    local target_user=""
+    local candidate_bin=""
+
+    [[ -f "$state_file" ]] || return 1
+
+    if [[ "$state_file" == */.acfs/state.json ]]; then
+        state_home="${state_file%/.acfs/state.json}"
+        state_home="${state_home%/}"
+        if [[ -n "$state_home" ]] && [[ "$state_home" == /* ]] && [[ "$state_home" != "/" ]]; then
+            candidate_bin="$(find_acfs_bin_for_home "$state_home" 2>/dev/null || true)"
+            if [[ -n "$candidate_bin" ]]; then
+                printf '%s\n' "$candidate_bin"
+                return 0
+            fi
+
+            # For home-adjacent state files, the path is a stronger signal than
+            # any embedded target_user copied from another install.
+            return 1
+        fi
+    fi
+
+    target_home="$(read_target_home_from_state_file "$state_file" 2>/dev/null || true)"
+    if [[ -n "$target_home" ]]; then
+        candidate_bin="$(find_acfs_bin_for_home "$target_home" 2>/dev/null || true)"
+        if [[ -n "$candidate_bin" ]]; then
+            printf '%s\n' "$candidate_bin"
+            return 0
+        fi
+    fi
+
+    target_user="$(read_target_user_from_state_file "$state_file" 2>/dev/null || true)"
+    [[ -n "$target_user" ]] || return 1
+    find_acfs_bin "$target_user"
+}
+
 find_acfs_bin_for_home() {
     local user_home="$1"
 
@@ -170,6 +209,18 @@ read_target_user_from_state_hint() {
             # For home-adjacent state files, refuse to trust mismatched target_user
             # values from stale copies. The path itself is the stronger signal.
             return 1
+        fi
+    fi
+
+    state_home="$(read_target_home_from_state_file "$state_file" 2>/dev/null || true)"
+    if [[ -n "$state_home" ]] && [[ "$state_home" == /* ]] && [[ "$state_home" != "/" ]]; then
+        candidate_user="$(read_user_for_home "$state_home" 2>/dev/null || true)"
+        if [[ -z "$candidate_user" ]]; then
+            candidate_user="$(read_target_user_from_state_file "$state_file" 2>/dev/null || true)"
+        fi
+        if [[ -n "$candidate_user" ]] && find_acfs_bin_for_home "$state_home" >/dev/null 2>&1; then
+            printf '%s\n' "$candidate_user"
+            return 0
         fi
     fi
 
@@ -288,14 +339,39 @@ detect_target_user() {
 
 main() {
     local target_user
-    local acfs_bin
+    local acfs_bin=""
     local current_user
+    local candidate_bin=""
 
     target_user="$(detect_target_user)"
     current_user="$(whoami)"
 
     # Find the acfs binary
-    if ! acfs_bin="$(find_acfs_bin "$target_user")"; then
+    if [[ -n "${ACFS_HOME:-}" ]] && [[ "${ACFS_HOME}" == */.acfs ]]; then
+        candidate_bin="$(find_acfs_bin_for_home "${ACFS_HOME%/.acfs}" 2>/dev/null || true)"
+        [[ -n "$candidate_bin" ]] && acfs_bin="$candidate_bin"
+    fi
+
+    if [[ -z "$acfs_bin" ]] && [[ -n "${ACFS_STATE_FILE:-}" ]]; then
+        candidate_bin="$(find_acfs_bin_from_state_file "$ACFS_STATE_FILE" 2>/dev/null || true)"
+        [[ -n "$candidate_bin" ]] && acfs_bin="$candidate_bin"
+    fi
+
+    if [[ -z "$acfs_bin" ]]; then
+        candidate_bin="$(find_acfs_bin_from_state_file "$HOME/.acfs/state.json" 2>/dev/null || true)"
+        [[ -n "$candidate_bin" ]] && acfs_bin="$candidate_bin"
+    fi
+
+    if [[ -z "$acfs_bin" ]] && [[ -n "${ACFS_SYSTEM_STATE_FILE:-}" ]]; then
+        candidate_bin="$(find_acfs_bin_from_state_file "$ACFS_SYSTEM_STATE_FILE" 2>/dev/null || true)"
+        [[ -n "$candidate_bin" ]] && acfs_bin="$candidate_bin"
+    fi
+
+    if [[ -z "$acfs_bin" ]]; then
+        acfs_bin="$(find_acfs_bin "$target_user" || true)"
+    fi
+
+    if [[ -z "$acfs_bin" ]]; then
         echo "Error: ACFS not found for user '$target_user'" >&2
 
         local target_home
