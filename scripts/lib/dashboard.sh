@@ -12,7 +12,13 @@
 
 set -euo pipefail
 
-ACFS_HOME="${ACFS_HOME:-$HOME/.acfs}"
+_DASHBOARD_EXPLICIT_ACFS_HOME="${ACFS_HOME:-}"
+_DASHBOARD_DEFAULT_ACFS_HOME="$HOME/.acfs"
+ACFS_HOME="${_DASHBOARD_EXPLICIT_ACFS_HOME:-$_DASHBOARD_DEFAULT_ACFS_HOME}"
+_DASHBOARD_SYSTEM_STATE_FILE="${ACFS_SYSTEM_STATE_FILE:-/var/lib/acfs/state.json}"
+_DASHBOARD_RESOLVED_ACFS_HOME=""
+_DASHBOARD_RESOLVED_TARGET_USER=""
+_DASHBOARD_RESOLVED_TARGET_HOME=""
 
 dashboard_usage() {
     echo "Usage: acfs dashboard <command>"
@@ -21,6 +27,159 @@ dashboard_usage() {
     echo "  generate [--force]   Generate ~/.acfs/dashboard/index.html"
     echo "  serve [--port PORT] [--host HOST] [--public]  Start a temporary HTTP server for the dashboard"
     echo "  help                 Show this help"
+}
+
+dashboard_home_for_user() {
+    local user="$1"
+    local passwd_entry=""
+
+    [[ -n "$user" ]] || return 1
+
+    if command -v getent &>/dev/null; then
+        passwd_entry=$(getent passwd "$user" 2>/dev/null || true)
+        if [[ -n "$passwd_entry" ]]; then
+            printf '%s\n' "$(printf '%s\n' "$passwd_entry" | cut -d: -f6)"
+            return 0
+        fi
+    fi
+
+    if [[ "$user" == "root" ]]; then
+        echo "/root"
+        return 0
+    fi
+
+    if [[ "$user" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
+        echo "/home/$user"
+        return 0
+    fi
+
+    return 1
+}
+
+dashboard_read_state_string() {
+    local state_file="$1"
+    local key="$2"
+    local value=""
+
+    [[ -f "$state_file" ]] || return 1
+
+    if command -v jq &>/dev/null; then
+        value=$(jq -r --arg key "$key" '.[$key] // empty' "$state_file" 2>/dev/null || true)
+    else
+        value=$(sed -n "s/.*\"${key}\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" "$state_file" 2>/dev/null | head -n 1)
+    fi
+
+    [[ -n "$value" ]] && [[ "$value" != "null" ]] || return 1
+    printf '%s\n' "$value"
+}
+
+dashboard_candidate_has_acfs_data() {
+    local candidate="$1"
+    [[ -n "$candidate" ]] || return 1
+    [[ -f "$candidate/state.json" || -f "$candidate/VERSION" || -d "$candidate/dashboard" || -d "$candidate/onboard" || -f "$candidate/scripts/lib/info.sh" ]]
+}
+
+dashboard_script_acfs_home() {
+    local candidate=""
+    candidate=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd) || return 1
+    [[ "$(basename "$candidate")" == ".acfs" ]] || return 1
+    printf '%s\n' "$candidate"
+}
+
+dashboard_resolve_acfs_home() {
+    if [[ -n "$_DASHBOARD_RESOLVED_ACFS_HOME" ]]; then
+        printf '%s\n' "$_DASHBOARD_RESOLVED_ACFS_HOME"
+        return 0
+    fi
+
+    local candidate=""
+    local target_home=""
+    local target_user=""
+
+    if [[ -n "$_DASHBOARD_EXPLICIT_ACFS_HOME" ]]; then
+        _DASHBOARD_RESOLVED_ACFS_HOME="$_DASHBOARD_EXPLICIT_ACFS_HOME"
+        printf '%s\n' "$_DASHBOARD_RESOLVED_ACFS_HOME"
+        return 0
+    fi
+
+    candidate=$(dashboard_script_acfs_home 2>/dev/null || true)
+    if dashboard_candidate_has_acfs_data "$candidate"; then
+        _DASHBOARD_RESOLVED_ACFS_HOME="$candidate"
+        printf '%s\n' "$_DASHBOARD_RESOLVED_ACFS_HOME"
+        return 0
+    fi
+
+    if dashboard_candidate_has_acfs_data "$ACFS_HOME"; then
+        _DASHBOARD_RESOLVED_ACFS_HOME="$ACFS_HOME"
+        printf '%s\n' "$_DASHBOARD_RESOLVED_ACFS_HOME"
+        return 0
+    fi
+
+    if [[ -n "${SUDO_USER:-}" ]]; then
+        target_home=$(dashboard_home_for_user "$SUDO_USER" 2>/dev/null || true)
+        candidate="${target_home}/.acfs"
+        if [[ -n "$target_home" ]] && dashboard_candidate_has_acfs_data "$candidate"; then
+            _DASHBOARD_RESOLVED_ACFS_HOME="$candidate"
+            printf '%s\n' "$_DASHBOARD_RESOLVED_ACFS_HOME"
+            return 0
+        fi
+    fi
+
+    target_user=$(dashboard_read_state_string "$_DASHBOARD_SYSTEM_STATE_FILE" "target_user" 2>/dev/null || true)
+    if [[ -n "$target_user" ]]; then
+        target_home=$(dashboard_read_state_string "$_DASHBOARD_SYSTEM_STATE_FILE" "target_home" 2>/dev/null || true)
+        if [[ -z "$target_home" ]]; then
+            target_home=$(dashboard_home_for_user "$target_user" 2>/dev/null || true)
+        fi
+        candidate="${target_home}/.acfs"
+        if [[ -n "$target_home" ]] && dashboard_candidate_has_acfs_data "$candidate"; then
+            _DASHBOARD_RESOLVED_ACFS_HOME="$candidate"
+            printf '%s\n' "$_DASHBOARD_RESOLVED_ACFS_HOME"
+            return 0
+        fi
+    fi
+
+    _DASHBOARD_RESOLVED_ACFS_HOME="$ACFS_HOME"
+    printf '%s\n' "$_DASHBOARD_RESOLVED_ACFS_HOME"
+}
+
+dashboard_resolve_state_file() {
+    local candidate="${ACFS_HOME}/state.json"
+
+    if [[ -f "$candidate" ]]; then
+        printf '%s\n' "$candidate"
+        return 0
+    fi
+
+    if [[ -f "$_DASHBOARD_SYSTEM_STATE_FILE" ]]; then
+        printf '%s\n' "$_DASHBOARD_SYSTEM_STATE_FILE"
+        return 0
+    fi
+
+    printf '%s\n' "$candidate"
+}
+
+dashboard_prepare_context() {
+    local state_file=""
+
+    ACFS_HOME="$(dashboard_resolve_acfs_home)"
+    state_file="$(dashboard_resolve_state_file)"
+
+    if [[ -z "$_DASHBOARD_RESOLVED_TARGET_USER" ]]; then
+        _DASHBOARD_RESOLVED_TARGET_USER="$(dashboard_read_state_string "$state_file" "target_user" 2>/dev/null || \
+            dashboard_read_state_string "$_DASHBOARD_SYSTEM_STATE_FILE" "target_user" 2>/dev/null || true)"
+    fi
+
+    if [[ -z "$_DASHBOARD_RESOLVED_TARGET_HOME" ]]; then
+        _DASHBOARD_RESOLVED_TARGET_HOME="$(dashboard_read_state_string "$state_file" "target_home" 2>/dev/null || \
+            dashboard_read_state_string "$_DASHBOARD_SYSTEM_STATE_FILE" "target_home" 2>/dev/null || true)"
+        if [[ -z "$_DASHBOARD_RESOLVED_TARGET_HOME" ]] && [[ -n "$_DASHBOARD_RESOLVED_TARGET_USER" ]]; then
+            _DASHBOARD_RESOLVED_TARGET_HOME="$(dashboard_home_for_user "$_DASHBOARD_RESOLVED_TARGET_USER" 2>/dev/null || true)"
+        fi
+        if [[ -z "$_DASHBOARD_RESOLVED_TARGET_HOME" ]] && [[ "$ACFS_HOME" == */.acfs ]]; then
+            _DASHBOARD_RESOLVED_TARGET_HOME="${ACFS_HOME%/.acfs}"
+        fi
+    fi
 }
 
 find_info_script() {
@@ -53,6 +212,8 @@ validate_port() {
 
 dashboard_generate() {
     local force=false
+
+    dashboard_prepare_context
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -133,6 +294,8 @@ dashboard_serve() {
     local port=8080
     local host="127.0.0.1"
 
+    dashboard_prepare_context
+
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --port)
@@ -212,9 +375,10 @@ dashboard_serve() {
     [[ -z "$ip" ]] && ip="<your-server-ip>"
 
     # Prefer the invoking user for SSH tunnel instructions (handles `sudo acfs ...`).
-    # Avoid hard-coding "ubuntu" so TARGET_USER installs aren't confusing.
     local ssh_user=""
-    if [[ -n "${SUDO_USER:-}" ]] && [[ "${SUDO_USER}" != "root" ]]; then
+    if [[ -n "$_DASHBOARD_RESOLVED_TARGET_USER" ]]; then
+        ssh_user="$_DASHBOARD_RESOLVED_TARGET_USER"
+    elif [[ -n "${SUDO_USER:-}" ]] && [[ "${SUDO_USER}" != "root" ]]; then
         ssh_user="$SUDO_USER"
     else
         ssh_user="$(whoami 2>/dev/null || echo "ubuntu")"

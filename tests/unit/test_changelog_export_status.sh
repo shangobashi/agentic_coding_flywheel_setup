@@ -462,6 +462,51 @@ EOF
     cleanup_mock_env
 }
 
+test_dashboard_uses_installed_layout_under_root_home() {
+    setup_installed_layout_env
+    cp "$DASHBOARD_SH" "$TEST_INSTALLED_ACFS/scripts/lib/dashboard.sh"
+
+    local output=""
+    output=$(HOME="$TEST_ROOT_HOME" PATH="$TEST_FAKE_BIN:/usr/bin:/bin" \
+        bash "$TEST_INSTALLED_ACFS/scripts/lib/dashboard.sh" generate --force)
+
+    if [[ "$output" == *"$TEST_INSTALLED_ACFS/dashboard/index.html"* ]] \
+        && [[ -f "$TEST_INSTALLED_ACFS/dashboard/index.html" ]] \
+        && [[ ! -e "$TEST_ROOT_HOME/.acfs/dashboard/index.html" ]]; then
+        harness_pass "dashboard writes to installed layout under root home"
+    else
+        harness_fail "dashboard writes to installed layout under root home" "$output"
+    fi
+
+    cleanup_mock_env
+}
+
+test_dashboard_serve_uses_target_user_in_ssh_hint() {
+    setup_installed_layout_env
+    cp "$DASHBOARD_SH" "$TEST_INSTALLED_ACFS/scripts/lib/dashboard.sh"
+    mkdir -p "$TEST_INSTALLED_ACFS/dashboard"
+    printf 'existing dashboard\n' > "$TEST_INSTALLED_ACFS/dashboard/index.html"
+
+    cat > "$TEST_FAKE_BIN/python3" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+    chmod +x "$TEST_FAKE_BIN/python3"
+
+    local output=""
+    output=$(HOME="$TEST_ROOT_HOME" PATH="$TEST_FAKE_BIN:/usr/bin:/bin" \
+        bash "$TEST_INSTALLED_ACFS/scripts/lib/dashboard.sh" serve --port 9099 2>&1)
+
+    if [[ "$output" == *"ssh -L 9099:localhost:9099 tester@"* ]] \
+        && [[ "$output" != *"ssh -L 9099:localhost:9099 $(whoami 2>/dev/null || echo unknown)@"* ]]; then
+        harness_pass "dashboard serve uses target user in SSH hint"
+    else
+        harness_fail "dashboard serve uses target user in SSH hint" "$output"
+    fi
+
+    cleanup_mock_env
+}
+
 test_doctor_entrypoint_dispatches_helper_commands() {
     setup_mock_env
 
@@ -1011,6 +1056,8 @@ main() {
     test_dashboard_generation_is_atomic_on_failure || true
     test_dashboard_rejects_invalid_ports_before_serving || true
     test_dashboard_prefers_repo_local_info_script || true
+    test_dashboard_uses_installed_layout_under_root_home || true
+    test_dashboard_serve_uses_target_user_in_ssh_hint || true
 
     harness_section "Info / Support / Onboard"
     test_info_uses_installed_layout_under_root_home || true
