@@ -124,6 +124,41 @@ cleanup_test_env() {
     rm -rf "/tmp/test_doctor_fix_"* 2>/dev/null || true
 }
 
+test_doctor_fix_prefers_target_home_for_autofix_state() {
+    local temp_root=""
+    temp_root="$(mktemp -d)"
+
+    local root_home="$temp_root/root-home"
+    local target_home="$temp_root/target-home"
+    local installed_lib="$target_home/.acfs/scripts/lib"
+    mkdir -p "$root_home" "$installed_lib"
+
+    cp "$REPO_ROOT/scripts/lib/doctor_fix.sh" "$installed_lib/doctor_fix.sh"
+    cp "$REPO_ROOT/scripts/lib/autofix.sh" "$installed_lib/autofix.sh"
+
+    local state_dir=""
+    state_dir=$(env -u SCRIPT_DIR \
+        -u ACFS_STATE_DIR \
+        -u ACFS_CHANGES_FILE \
+        -u ACFS_UNDOS_FILE \
+        -u ACFS_BACKUPS_DIR \
+        -u ACFS_LOCK_FILE \
+        -u ACFS_INTEGRITY_FILE \
+        HOME="$root_home" \
+        TARGET_HOME="$target_home" \
+        bash -lc 'source "$1"; printf "%s\n" "${ACFS_STATE_DIR:-unset}"' _ \
+        "$installed_lib/doctor_fix.sh")
+
+    if [[ "$state_dir" != "$target_home/.acfs/autofix" ]]; then
+        echo "  Expected ACFS_STATE_DIR=$target_home/.acfs/autofix, got $state_dir"
+        rm -rf "$temp_root"
+        return 1
+    fi
+
+    rm -rf "$temp_root"
+    return 0
+}
+
 # ============================================================
 # Test: file_contains_line helper
 # ============================================================
@@ -1304,6 +1339,7 @@ main() {
 
     # Helper tests
     run_test test_file_contains_line
+    run_test test_doctor_fix_prefers_target_home_for_autofix_state
 
     # fix_path_ordering tests
     run_test test_fix_path_ordering_applies

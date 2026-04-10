@@ -18,6 +18,7 @@ DASHBOARD_SH="$REPO_ROOT/scripts/lib/dashboard.sh"
 DOCTOR_SH="$REPO_ROOT/scripts/lib/doctor.sh"
 CONTINUE_SH="$REPO_ROOT/scripts/lib/continue.sh"
 ONBOARD_SH="$REPO_ROOT/packages/onboard/onboard.sh"
+SERVICES_SETUP_SH="$REPO_ROOT/scripts/services-setup.sh"
 
 source "$REPO_ROOT/tests/vm/lib/test_harness.sh"
 
@@ -411,6 +412,85 @@ test_changelog_rejects_invalid_duration() {
         harness_pass "changelog rejects malformed --since values"
     else
         harness_fail "changelog rejects malformed --since values" "exit=$exit_code output=$output"
+    fi
+
+    cleanup_mock_env
+}
+
+test_services_setup_prefers_target_home_libs_under_root_home() {
+    setup_mock_env
+
+    local root_home="$TEST_HOME/root-home"
+    local target_home="$TEST_HOME/target-home"
+    local output=""
+
+    mkdir -p \
+        "$root_home/.acfs/scripts/lib" \
+        "$target_home/.acfs/scripts/lib" \
+        "$target_home/.acfs/scripts"
+
+    cp "$SERVICES_SETUP_SH" "$target_home/.acfs/scripts/services-setup.sh"
+
+    cat > "$root_home/.acfs/scripts/lib/logging.sh" <<'EOF'
+#!/usr/bin/env bash
+log_error() { echo "ROOT_LOG_ERROR:$*"; }
+log_info() { :; }
+log_warn() { :; }
+log_success() { :; }
+EOF
+
+    cat > "$root_home/.acfs/scripts/lib/gum_ui.sh" <<'EOF'
+#!/usr/bin/env bash
+HAS_GUM=false
+ACFS_ACCENT=x
+ACFS_PINK=x
+ACFS_MUTED=x
+ACFS_TEAL=x
+ACFS_PRIMARY=x
+ACFS_SUCCESS=x
+ACFS_ERROR=x
+print_compact_banner() { :; }
+gum_detail() { :; }
+gum_error() { echo "ROOT_GUM_ERROR:$*"; }
+gum_warn() { :; }
+gum_confirm() { return 1; }
+gum_completion() { :; }
+EOF
+
+    cat > "$target_home/.acfs/scripts/lib/logging.sh" <<'EOF'
+#!/usr/bin/env bash
+log_error() { echo "TARGET_LOG_ERROR:$*"; }
+log_info() { :; }
+log_warn() { :; }
+log_success() { :; }
+EOF
+
+    cat > "$target_home/.acfs/scripts/lib/gum_ui.sh" <<'EOF'
+#!/usr/bin/env bash
+HAS_GUM=false
+ACFS_ACCENT=x
+ACFS_PINK=x
+ACFS_MUTED=x
+ACFS_TEAL=x
+ACFS_PRIMARY=x
+ACFS_SUCCESS=x
+ACFS_ERROR=x
+print_compact_banner() { :; }
+gum_detail() { :; }
+gum_error() { echo "TARGET_GUM_ERROR:$*"; }
+gum_warn() { :; }
+gum_confirm() { return 1; }
+gum_completion() { :; }
+EOF
+
+    output=$(HOME="$root_home" TARGET_HOME="$target_home" TARGET_USER="$(whoami)" \
+        bash "$target_home/.acfs/scripts/services-setup.sh" --install-claude-guard --yes 2>&1 || true)
+
+    if [[ "$output" == *"TARGET_GUM_ERROR:DCG not installed. Run the main installer first."* ]] \
+        && [[ "$output" != *"ROOT_GUM_ERROR:"* ]]; then
+        harness_pass "services-setup prefers target-home libs under root home"
+    else
+        harness_fail "services-setup prefers target-home libs under root home" "$output"
     fi
 
     cleanup_mock_env
@@ -1954,6 +2034,9 @@ main() {
     test_changelog_json_is_valid || true
     test_changelog_defaults_to_last_updated || true
     test_changelog_rejects_invalid_duration || true
+
+    harness_section "Services Setup"
+    test_services_setup_prefers_target_home_libs_under_root_home || true
 
     harness_section "Export Config"
     test_export_config_json_is_valid || true

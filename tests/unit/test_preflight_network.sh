@@ -273,6 +273,76 @@ test_preflight_quiet_mode() {
     harness_assert_eq "0" "$exit_code" "Quiet mode exit code should be 0 on healthy system"
 }
 
+test_preflight_root_resolves_target_home_for_disk_and_conflicts() {
+    harness_section "Test: Root preflight uses resolved target home"
+
+    if ! command -v sudo &>/dev/null || ! sudo -n true 2>/dev/null; then
+        harness_skip "Root preflight target-home resolution" "passwordless sudo unavailable"
+        return 0
+    fi
+
+    local temp_root=""
+    temp_root="$(mktemp -d)"
+
+    local mock_dir="$temp_root/mockbin"
+    local root_home="$temp_root/root-home"
+    local target_home="$temp_root/custom-home"
+    local capture_file="$temp_root/df_args.txt"
+    mkdir -p "$mock_dir" "$root_home" "$target_home/.acfs"
+    cat > "$target_home/.acfs/state.json" <<'EOF'
+{"target_user":"customuser"}
+EOF
+
+    cat > "$mock_dir/df" <<EOF
+#!/usr/bin/env bash
+echo "\$*" > "$capture_file"
+printf 'Filesystem 1024-blocks Used Available Capacity Mounted on\nmock 100 0 41943040 0%% /srv\n'
+EOF
+    chmod +x "$mock_dir/df"
+
+    cat > "$mock_dir/getent" <<EOF
+#!/usr/bin/env bash
+if [[ "\$1" == "passwd" ]] && [[ "\$2" == "customuser" ]]; then
+    echo "customuser:x:1000:1000::$target_home:/bin/bash"
+    exit 0
+fi
+exec /usr/bin/getent "\$@"
+EOF
+    chmod +x "$mock_dir/getent"
+
+    local output=""
+    local exit_code=0
+    output=$(sudo -n env PATH="$mock_dir:/usr/bin:/bin" HOME="$root_home" TARGET_USER=customuser \
+        bash "$REPO_ROOT/scripts/preflight.sh" --json 2>&1) || exit_code=$?
+
+    local df_args=""
+    if [[ -f "$capture_file" ]]; then
+        df_args="$(cat "$capture_file")"
+    fi
+
+    if [[ "$df_args" == *"$target_home"* ]]; then
+        harness_pass "Disk check uses getent-resolved target home under root"
+    else
+        harness_fail "Disk check uses getent-resolved target home under root" "df args: $df_args"
+    fi
+
+    local acfs_status=""
+    acfs_status=$(get_check_status "$output" "Existing ACFS installation")
+    if [[ "$acfs_status" == "warn" ]]; then
+        harness_pass "Conflict checks inspect the resolved target home under root"
+    else
+        harness_fail "Conflict checks inspect the resolved target home under root" "status: $acfs_status output: $output"
+    fi
+
+    if [[ "$exit_code" =~ ^[01]$ ]]; then
+        harness_pass "Root preflight completed with a valid exit code"
+    else
+        harness_fail "Root preflight completed with a valid exit code" "exit: $exit_code"
+    fi
+
+    rm -rf "$temp_root"
+}
+
 test_dns_check_hosts() {
     harness_section "Test: DNS check tests expected hosts"
 
@@ -375,6 +445,7 @@ main() {
     test_preflight_apt_mirror_check_present
     test_preflight_text_output_format
     test_preflight_quiet_mode
+    test_preflight_root_resolves_target_home_for_disk_and_conflicts
     test_dns_check_hosts
     test_installer_urls_checked
     test_preflight_exit_code_on_warnings

@@ -9,17 +9,47 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ACFS_HOME="${ACFS_HOME:-}"
+TARGET_HOME="${TARGET_HOME:-}"
 
-# Source libraries - try installed location first, then development location
-if [[ -f "$HOME/.acfs/scripts/lib/logging.sh" ]]; then
-    source "$HOME/.acfs/scripts/lib/logging.sh"
-    source "$HOME/.acfs/scripts/lib/gum_ui.sh"
-elif [[ -f "$SCRIPT_DIR/lib/logging.sh" ]]; then
-    source "$SCRIPT_DIR/lib/logging.sh"
-    source "$SCRIPT_DIR/lib/gum_ui.sh"
+resolve_script_lib_dir() {
+    local -a candidates=()
+    local candidate=""
+
+    candidates+=("$SCRIPT_DIR/lib")
+
+    if [[ -n "${ACFS_HOME:-}" ]] && [[ "${ACFS_HOME}" == /* ]]; then
+        candidates+=("${ACFS_HOME%/}/scripts/lib")
+    fi
+
+    if [[ -n "${TARGET_HOME:-}" ]] && [[ "${TARGET_HOME}" == /* ]]; then
+        candidates+=("${TARGET_HOME%/}/.acfs/scripts/lib")
+    fi
+
+    if [[ -n "${HOME:-}" ]] && [[ "${HOME}" == /* ]]; then
+        candidates+=("${HOME%/}/.acfs/scripts/lib")
+    fi
+
+    for candidate in "${candidates[@]}"; do
+        if [[ -f "$candidate/logging.sh" ]] && [[ -f "$candidate/gum_ui.sh" ]]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+ACFS_LIB_DIR="$(resolve_script_lib_dir || true)"
+
+# Source libraries from the script-adjacent install first, then explicit ACFS
+# and target-home hints, and only finally the caller HOME fallback.
+if [[ -n "$ACFS_LIB_DIR" ]]; then
+    source "$ACFS_LIB_DIR/logging.sh"
+    source "$ACFS_LIB_DIR/gum_ui.sh"
 else
     echo "Error: Cannot find ACFS script libraries"
-    echo "Expected at: $HOME/.acfs/scripts/lib/ or $SCRIPT_DIR/lib/"
+    echo "Expected at: $SCRIPT_DIR/lib/ or ${ACFS_HOME:-<acfs-home>}/scripts/lib/ or ${TARGET_HOME:-<target-home>}/.acfs/scripts/lib/ or ${HOME:-<home>}/.acfs/scripts/lib/"
     exit 1
 fi
 
@@ -44,7 +74,6 @@ resolve_home_dir() {
     printf '%s' "$home"
 }
 
-TARGET_HOME="${TARGET_HOME:-}"
 BUN_BIN="${BUN_BIN:-}"
 
 init_target_context() {

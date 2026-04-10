@@ -40,6 +40,19 @@ doctor_fix_log_file_path() {
     printf '%s/.local/share/acfs/doctor.log\n' "$(doctor_fix_runtime_home)"
 }
 
+# Seed autofix state paths from the resolved ACFS home before sourcing
+# autofix.sh so direct root-home-mismatch invocations do not record changes in
+# the caller HOME by accident.
+if [[ -z "${ACFS_STATE_DIR:-}" ]]; then
+    ACFS_STATE_DIR="$(doctor_fix_runtime_acfs_home)/autofix"
+fi
+ACFS_CHANGES_FILE="${ACFS_CHANGES_FILE:-${ACFS_STATE_DIR}/changes.jsonl}"
+ACFS_UNDOS_FILE="${ACFS_UNDOS_FILE:-${ACFS_STATE_DIR}/undos.jsonl}"
+ACFS_BACKUPS_DIR="${ACFS_BACKUPS_DIR:-${ACFS_STATE_DIR}/backups}"
+ACFS_LOCK_FILE="${ACFS_LOCK_FILE:-${ACFS_STATE_DIR}/.lock}"
+ACFS_INTEGRITY_FILE="${ACFS_INTEGRITY_FILE:-${ACFS_STATE_DIR}/.integrity}"
+export ACFS_STATE_DIR ACFS_CHANGES_FILE ACFS_UNDOS_FILE ACFS_BACKUPS_DIR ACFS_LOCK_FILE ACFS_INTEGRITY_FILE
+
 # Source autofix library for change tracking
 SCRIPT_DIR="${SCRIPT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 if [[ -f "$SCRIPT_DIR/autofix.sh" ]]; then

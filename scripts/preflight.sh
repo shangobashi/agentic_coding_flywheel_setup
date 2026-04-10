@@ -51,6 +51,55 @@ MACHINE_OUTPUT=false
 # Results for JSON output
 declare -a RESULTS=()
 
+resolve_home_dir() {
+    local user="$1"
+    local home=""
+
+    if [[ -z "$user" ]]; then
+        return 1
+    fi
+
+    if command -v getent &>/dev/null; then
+        home="$(getent passwd "$user" 2>/dev/null | cut -d: -f6)"
+    elif [[ -r /etc/passwd ]]; then
+        home="$(awk -F: -v u="$user" '$1==u{print $6}' /etc/passwd)"
+    fi
+
+    if [[ -n "$home" ]] && [[ "$home" == /* ]]; then
+        printf '%s\n' "${home%/}"
+        return 0
+    fi
+
+    return 1
+}
+
+resolve_install_target_home() {
+    local target_home=""
+
+    if [[ -n "${TARGET_HOME:-}" ]] && [[ "${TARGET_HOME}" == /* ]]; then
+        printf '%s\n' "${TARGET_HOME%/}"
+        return 0
+    fi
+
+    if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
+        target_home="$(resolve_home_dir "${TARGET_USER:-ubuntu}" 2>/dev/null || true)"
+        if [[ -n "$target_home" ]]; then
+            printf '%s\n' "$target_home"
+            return 0
+        fi
+
+        printf '/home/%s\n' "${TARGET_USER:-ubuntu}"
+        return 0
+    fi
+
+    if [[ -n "${HOME:-}" ]] && [[ "${HOME}" == /* ]]; then
+        printf '%s\n' "${HOME%/}"
+        return 0
+    fi
+
+    return 1
+}
+
 # ============================================================
 # Argument Parsing
 # ============================================================
@@ -243,17 +292,9 @@ check_memory() {
 }
 
 check_disk() {
-    # Determine the actual installation target directory.
-    # This mirrors the logic in install.sh: TARGET_HOME > HOME, with
-    # TARGET_USER-based fallback when running as root.
     local target_dir
-    if [[ -n "${TARGET_HOME:-}" ]]; then
-        target_dir="$TARGET_HOME"
-    elif [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
-        target_dir="/home/${TARGET_USER:-ubuntu}"
-    else
-        target_dir="${HOME:-/}"
-    fi
+    target_dir="$(resolve_install_target_home 2>/dev/null || true)"
+    [[ -n "$target_dir" ]] || target_dir="${HOME:-/}"
 
     # Walk up to the nearest existing ancestor directory, since the target
     # may not have been created yet (e.g. /home/newuser on a fresh VPS).
@@ -594,34 +635,35 @@ check_sudo() {
 
 check_conflicts() {
     local conflicts_found=false
+    local user_home=""
 
-    # Skip HOME-dependent checks if HOME is not set
-    if [[ -z "${HOME:-}" ]]; then
-        warn "Conflict checks skipped" "HOME not set, cannot check user directories"
+    user_home="$(resolve_install_target_home 2>/dev/null || true)"
+    if [[ -z "$user_home" ]]; then
+        warn "Conflict checks skipped" "Unable to resolve installation target home"
         return
     fi
 
     # Check for nvm (may conflict with bun/mise)
-    if [[ -d "${NVM_DIR:-$HOME/.nvm}" ]] || [[ -f "$HOME/.nvm/nvm.sh" ]]; then
+    if [[ -d "${NVM_DIR:-$user_home/.nvm}" ]] || [[ -f "$user_home/.nvm/nvm.sh" ]]; then
         warn "nvm detected" "May conflict with bun; consider removing or deactivating"
         conflicts_found=true
     fi
 
     # Check for pyenv (may conflict with uv)
-    if [[ -d "$HOME/.pyenv" ]] || command -v pyenv &>/dev/null; then
+    if [[ -d "$user_home/.pyenv" ]] || command -v pyenv &>/dev/null; then
         warn "pyenv detected" "May conflict with uv; consider removing or deactivating"
         conflicts_found=true
     fi
 
     # Check for rbenv
-    if [[ -d "$HOME/.rbenv" ]] || command -v rbenv &>/dev/null; then
+    if [[ -d "$user_home/.rbenv" ]] || command -v rbenv &>/dev/null; then
         # Not a conflict, just FYI
         pass "rbenv detected" "Will coexist with ACFS tools"
     fi
 
     # Check for existing ACFS installation
-    if [[ -d "$HOME/.acfs" ]]; then
-        if [[ -f "$HOME/.acfs/state.json" ]]; then
+    if [[ -d "$user_home/.acfs" ]]; then
+        if [[ -f "$user_home/.acfs/state.json" ]]; then
             warn "Existing ACFS installation" "Previous install found; consider --resume or fresh start"
         else
             pass "ACFS directory exists" "Partial installation detected"
