@@ -1262,6 +1262,32 @@ EOF
     cleanup_mock_env
 }
 
+test_onboard_auth_checks_use_installed_target_home_under_root_home() {
+    setup_installed_layout_env
+
+    mkdir -p "$TEST_TARGET_HOME/.claude"
+    cat > "$TEST_TARGET_HOME/.claude/.credentials.json" <<'JSON'
+{
+  "claudeAiOauth": {
+    "accessToken": "claude-token"
+  }
+}
+JSON
+    write_fake_command "$TEST_TARGET_HOME/.local/bin/claude" "claude 1.2.3"
+
+    local output=""
+    output=$(HOME="$TEST_ROOT_HOME" ACFS_HOME="$TEST_INSTALLED_ACFS" PATH="$TEST_TARGET_HOME/.local/bin:$TEST_FAKE_BIN:/usr/bin:/bin" \
+        bash -lc 'source "'"$ONBOARD_SH"'" help >/dev/null; check_auth_status claude && status=0 || status=$?; printf "%s\n" "$status"')
+
+    if [[ "$output" == "0" ]]; then
+        harness_pass "onboard auth checks use installed target home under root home"
+    else
+        harness_fail "onboard auth checks use installed target home under root home" "$output"
+    fi
+
+    cleanup_mock_env
+}
+
 test_onboard_copy_install_uses_system_state_under_root_home() {
     setup_mock_env
 
@@ -1361,6 +1387,7 @@ main() {
     test_onboard_accepts_sparse_lesson_numbers || true
     test_onboard_uses_installed_layout_under_root_home || true
     test_onboard_cheatsheet_uses_installed_layout_under_root_home || true
+    test_onboard_auth_checks_use_installed_target_home_under_root_home || true
     test_onboard_copy_install_uses_system_state_under_root_home || true
 
     harness_section "Entrypoint Dispatch"

@@ -156,6 +156,45 @@ onboard_resolve_acfs_home() {
 }
 
 ACFS_HOME="$(onboard_resolve_acfs_home)"
+
+onboard_resolve_runtime_home() {
+    local target_home=""
+    local target_user=""
+
+    if [[ -n "${TARGET_HOME:-}" ]] && [[ "${TARGET_HOME}" == /* ]] && [[ "${TARGET_HOME}" != "/" ]]; then
+        printf '%s\n' "${TARGET_HOME%/}"
+        return 0
+    fi
+
+    target_home="$(onboard_read_state_string "$ACFS_HOME/state.json" "target_home" 2>/dev/null || \
+        onboard_read_state_string "$_ONBOARD_SYSTEM_STATE_FILE" "target_home" 2>/dev/null || true)"
+    if [[ -n "$target_home" ]] && [[ "$target_home" == /* ]] && [[ "$target_home" != "/" ]]; then
+        printf '%s\n' "${target_home%/}"
+        return 0
+    fi
+
+    target_user="$(onboard_read_state_string "$ACFS_HOME/state.json" "target_user" 2>/dev/null || \
+        onboard_read_state_string "$_ONBOARD_SYSTEM_STATE_FILE" "target_user" 2>/dev/null || true)"
+    if [[ -n "$target_user" ]]; then
+        target_home="$(onboard_home_for_user "$target_user" 2>/dev/null || true)"
+        if [[ -n "$target_home" ]] && [[ "$target_home" == /* ]] && [[ "$target_home" != "/" ]]; then
+            printf '%s\n' "${target_home%/}"
+            return 0
+        fi
+    fi
+
+    if [[ "$ACFS_HOME" == */.acfs ]]; then
+        target_home="${ACFS_HOME%/.acfs}"
+        if [[ -n "$target_home" ]] && [[ "$target_home" == /* ]] && [[ "$target_home" != "/" ]]; then
+            printf '%s\n' "${target_home%/}"
+            return 0
+        fi
+    fi
+
+    printf '%s\n' "$HOME"
+}
+
+ONBOARD_RUNTIME_HOME="$(onboard_resolve_runtime_home)"
 LESSONS_DIR="${ACFS_LESSONS_DIR:-$ACFS_HOME/onboard/lessons}"
 PROGRESS_FILE="${ACFS_PROGRESS_FILE:-$ACFS_HOME/onboard_progress.json}"
 PROGRESS_LOCK_FILE="${PROGRESS_FILE}.lock"
@@ -1048,11 +1087,12 @@ EOF
 # Returns: 0 = authenticated, 1 = not authenticated, 2 = not installed
 check_auth_status() {
     local service=$1
+    local runtime_home="${ONBOARD_RUNTIME_HOME:-$HOME}"
     local shell_config_files=(
-        "$HOME/.zshrc.local"
-        "$HOME/.zshrc"
-        "$HOME/.bashrc"
-        "$HOME/.profile"
+        "$runtime_home/.zshrc.local"
+        "$runtime_home/.zshrc"
+        "$runtime_home/.bashrc"
+        "$runtime_home/.profile"
     )
 
     case "$service" in
@@ -1075,7 +1115,7 @@ check_auth_status() {
                 return 2
             fi
             # Claude Code stores OAuth credentials in ~/.claude/.credentials.json.
-            local creds_file="$HOME/.claude/.credentials.json"
+            local creds_file="$runtime_home/.claude/.credentials.json"
             [[ -s "$creds_file" ]] || return 1
 
             if command -v jq &>/dev/null; then
@@ -1092,7 +1132,7 @@ check_auth_status() {
             fi
             # Codex stores auth in ~/.codex/auth.json (or $CODEX_HOME/auth.json).
             # File existence alone isn't enough; check for an access token field.
-            local codex_home="${CODEX_HOME:-$HOME/.codex}"
+            local codex_home="${CODEX_HOME:-$runtime_home/.codex}"
             local auth_file="$codex_home/auth.json"
             [[ -s "$auth_file" ]] || return 1
 
@@ -1109,7 +1149,7 @@ check_auth_status() {
             if ! command -v gemini &>/dev/null; then
                 return 2
             fi
-            local gemini_home="${GEMINI_CLI_HOME:-$HOME}"
+            local gemini_home="${GEMINI_CLI_HOME:-$runtime_home}"
             local gemini_config_files=(
                 "$gemini_home/.gemini/.env"
                 "${shell_config_files[@]}"
@@ -1189,7 +1229,7 @@ check_auth_status() {
             fi
 
             local auth_file=""
-            for auth_file in "$HOME/.config/vercel/auth.json" "$HOME/.vercel/auth.json"; do
+            for auth_file in "$runtime_home/.config/vercel/auth.json" "$runtime_home/.vercel/auth.json"; do
                 [[ -s "$auth_file" ]] || continue
                 if command -v jq &>/dev/null; then
                     local vercel_token=""
@@ -1212,7 +1252,7 @@ check_auth_status() {
             if get_configured_secret "SUPABASE_ACCESS_TOKEN" "${shell_config_files[@]}" >/dev/null; then
                 return 0
             fi
-            if file_has_nonblank_content "$HOME/.supabase/access-token" || file_has_nonblank_content "$HOME/.config/supabase/access-token"; then
+            if file_has_nonblank_content "$runtime_home/.supabase/access-token" || file_has_nonblank_content "$runtime_home/.config/supabase/access-token"; then
                 return 0
             fi
             return 1
