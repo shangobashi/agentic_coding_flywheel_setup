@@ -139,9 +139,15 @@ onboard_resolve_acfs_home() {
         fi
     fi
 
+    target_home="$(onboard_read_state_string "$_ONBOARD_SYSTEM_STATE_FILE" "target_home" 2>/dev/null || true)"
+    candidate="${target_home}/.acfs"
+    if [[ -n "$target_home" ]] && onboard_candidate_has_acfs_data "$candidate"; then
+        printf '%s\n' "$candidate"
+        return 0
+    fi
+
     target_user="$(onboard_read_state_string "$_ONBOARD_SYSTEM_STATE_FILE" "target_user" 2>/dev/null || true)"
     if [[ -n "$target_user" ]]; then
-        target_home="$(onboard_read_state_string "$_ONBOARD_SYSTEM_STATE_FILE" "target_home" 2>/dev/null || true)"
         if [[ -z "$target_home" ]]; then
             target_home="$(onboard_home_for_user "$target_user" 2>/dev/null || true)"
         fi

@@ -162,9 +162,16 @@ cheatsheet_resolve_acfs_home() {
     fi
   fi
 
+  target_home=$(cheatsheet_read_state_string "$_CHEATSHEET_SYSTEM_STATE_FILE" "target_home" 2>/dev/null || true)
+  candidate="${target_home}/.acfs"
+  if [[ -n "$target_home" ]] && cheatsheet_candidate_has_acfs_data "$candidate"; then
+    _CHEATSHEET_RESOLVED_ACFS_HOME="$candidate"
+    printf '%s\n' "$_CHEATSHEET_RESOLVED_ACFS_HOME"
+    return 0
+  fi
+
   target_user=$(cheatsheet_read_state_string "$_CHEATSHEET_SYSTEM_STATE_FILE" "target_user" 2>/dev/null || true)
   if [[ -n "$target_user" ]]; then
-    target_home=$(cheatsheet_read_state_string "$_CHEATSHEET_SYSTEM_STATE_FILE" "target_home" 2>/dev/null || true)
     if [[ -z "$target_home" ]]; then
       target_home=$(cheatsheet_home_for_user "$target_user" 2>/dev/null || true)
     fi

@@ -364,6 +364,21 @@ EOF
     write_fake_command "$TEST_TARGET_HOME/go/bin/go" "go version go1.24.0 linux/amd64"
 }
 
+setup_system_state_target_home_only_env() {
+    setup_system_state_target_home_env
+
+    cat > "$TEST_SYSTEM_STATE_FILE" <<EOF
+{
+  "mode": "safe",
+  "target_home": "$TEST_TARGET_HOME",
+  "started_at": "2026-03-09T08:00:00Z",
+  "last_updated": "2026-03-10T12:34:56Z",
+  "current_phase": { "id": "bootstrap" },
+  "current_step": "Installing tools"
+}
+EOF
+}
+
 cleanup_mock_env() {
     if [[ -n "$TEST_HOME" ]] && [[ -d "$TEST_HOME" ]]; then
         rm -rf "$TEST_HOME"
@@ -625,6 +640,35 @@ EOF
     cleanup_mock_env
 }
 
+test_dashboard_copy_install_uses_target_home_only_system_state() {
+    setup_system_state_target_home_only_env
+
+    mkdir -p "$TEST_ROOT_HOME/.local/bin" "$TEST_INSTALLED_ACFS/scripts/lib"
+    cp "$DASHBOARD_SH" "$TEST_ROOT_HOME/.local/bin/dashboard"
+    chmod +x "$TEST_ROOT_HOME/.local/bin/dashboard"
+
+    cat > "$TEST_INSTALLED_ACFS/scripts/lib/info.sh" <<'EOF'
+#!/usr/bin/env bash
+printf '<html>copied-dashboard-info</html>\n'
+EOF
+    chmod +x "$TEST_INSTALLED_ACFS/scripts/lib/info.sh"
+
+    local output=""
+    output=$(HOME="$TEST_ROOT_HOME" ACFS_SYSTEM_STATE_FILE="$TEST_SYSTEM_STATE_FILE" \
+        PATH="$TEST_ROOT_HOME/.local/bin:$TEST_FAKE_BIN:/usr/bin:/bin" \
+        dashboard generate --force 2>&1)
+
+    if [[ "$output" == *"$TEST_INSTALLED_ACFS/dashboard/index.html"* ]] \
+        && [[ -f "$TEST_INSTALLED_ACFS/dashboard/index.html" ]] \
+        && [[ ! -e "$TEST_ROOT_HOME/.acfs/dashboard/index.html" ]]; then
+        harness_pass "copied dashboard uses target_home-only system state"
+    else
+        harness_fail "copied dashboard uses target_home-only system state" "$output"
+    fi
+
+    cleanup_mock_env
+}
+
 test_cheatsheet_uses_installed_layout_and_target_path_under_root_home() {
     setup_installed_layout_env
     cp "$CHEATSHEET_SH" "$TEST_INSTALLED_ACFS/scripts/lib/cheatsheet.sh"
@@ -647,6 +691,33 @@ EOF
         harness_pass "cheatsheet uses installed layout and target-user PATH under root home"
     else
         harness_fail "cheatsheet uses installed layout and target-user PATH under root home" "$output"
+    fi
+
+    cleanup_mock_env
+}
+
+test_cheatsheet_copy_install_uses_target_home_only_system_state() {
+    setup_system_state_target_home_only_env
+
+    mkdir -p "$TEST_ROOT_HOME/.local/bin" "$TEST_INSTALLED_ACFS/zsh"
+    cp "$CHEATSHEET_SH" "$TEST_ROOT_HOME/.local/bin/cheatsheet"
+    chmod +x "$TEST_ROOT_HOME/.local/bin/cheatsheet"
+
+    cat > "$TEST_INSTALLED_ACFS/zsh/acfs.zshrc" <<'EOF'
+alias cod='codex'
+EOF
+    write_fake_command "$TEST_TARGET_HOME/.local/bin/codex" "codex 1.2.3"
+
+    local output=""
+    output=$(HOME="$TEST_ROOT_HOME" ACFS_SYSTEM_STATE_FILE="$TEST_SYSTEM_STATE_FILE" \
+        PATH="$TEST_ROOT_HOME/.local/bin:$TEST_FAKE_BIN:/usr/bin:/bin" \
+        cheatsheet --json 2>&1)
+
+    if printf '%s\n' "$output" | jq -e --arg zshrc "$TEST_INSTALLED_ACFS/zsh/acfs.zshrc" \
+        '.source == $zshrc and ([.entries[].name] | index("cod")) != null' >/dev/null 2>&1; then
+        harness_pass "copied cheatsheet uses target_home-only system state"
+    else
+        harness_fail "copied cheatsheet uses target_home-only system state" "$output"
     fi
 
     cleanup_mock_env
@@ -1780,6 +1851,42 @@ EOF
     cleanup_mock_env
 }
 
+test_onboard_copy_install_uses_target_home_only_system_state_under_root_home() {
+    setup_system_state_target_home_only_env
+
+    mkdir -p "$TEST_ROOT_HOME/.local/bin" "$TEST_INSTALLED_ACFS/scripts/lib" "$TEST_INSTALLED_ACFS/zsh"
+    cp "$ONBOARD_SH" "$TEST_ROOT_HOME/.local/bin/onboard"
+    chmod +x "$TEST_ROOT_HOME/.local/bin/onboard"
+    cp "$CHEATSHEET_SH" "$TEST_INSTALLED_ACFS/scripts/lib/cheatsheet.sh"
+
+    cat > "$TEST_INSTALLED_ACFS/zsh/acfs.zshrc" <<'EOF'
+alias cod='codex'
+EOF
+    write_fake_command "$TEST_TARGET_HOME/.local/bin/codex" "codex 1.2.3"
+
+    local status_output=""
+    status_output=$(HOME="$TEST_ROOT_HOME" ACFS_SYSTEM_STATE_FILE="$TEST_SYSTEM_STATE_FILE" \
+        PATH="$TEST_ROOT_HOME/.local/bin:$TEST_FAKE_BIN:/usr/bin:/bin" \
+        onboard status 2>&1)
+
+    local cheatsheet_output=""
+    cheatsheet_output=$(HOME="$TEST_ROOT_HOME" ACFS_SYSTEM_STATE_FILE="$TEST_SYSTEM_STATE_FILE" \
+        PATH="$TEST_ROOT_HOME/.local/bin:$TEST_FAKE_BIN:/usr/bin:/bin" \
+        onboard cheatsheet --json 2>&1)
+
+    if [[ -f "$TEST_INSTALLED_ACFS/onboard_progress.json" ]] \
+        && [[ ! -e "$TEST_ROOT_HOME/.acfs/onboard_progress.json" ]] \
+        && [[ "$status_output" != *"No lessons available"* ]] \
+        && printf '%s\n' "$cheatsheet_output" | jq -e --arg zshrc "$TEST_INSTALLED_ACFS/zsh/acfs.zshrc" \
+            '.source == $zshrc and ([.entries[].name] | index("cod")) != null' >/dev/null 2>&1; then
+        harness_pass "copied onboard uses target_home-only system state under root home"
+    else
+        harness_fail "copied onboard uses target_home-only system state under root home" "status=$status_output cheatsheet=$cheatsheet_output"
+    fi
+
+    cleanup_mock_env
+}
+
 main() {
     harness_init "ACFS Changelog/Export/Status Tests"
 
@@ -1827,9 +1934,11 @@ main() {
     test_dashboard_prefers_repo_local_info_script || true
     test_dashboard_uses_installed_layout_under_root_home || true
     test_dashboard_serve_uses_target_user_in_ssh_hint || true
+    test_dashboard_copy_install_uses_target_home_only_system_state || true
 
     harness_section "Cheatsheet"
     test_cheatsheet_uses_installed_layout_and_target_path_under_root_home || true
+    test_cheatsheet_copy_install_uses_target_home_only_system_state || true
 
     harness_section "Info / Support / Onboard"
     test_info_uses_installed_layout_under_root_home || true
@@ -1846,6 +1955,7 @@ main() {
     test_onboard_cheatsheet_uses_installed_layout_under_root_home || true
     test_onboard_auth_checks_use_installed_target_home_under_root_home || true
     test_onboard_copy_install_uses_system_state_under_root_home || true
+    test_onboard_copy_install_uses_target_home_only_system_state_under_root_home || true
 
     harness_section "Entrypoint Dispatch"
     test_doctor_entrypoint_dispatches_helper_commands || true
