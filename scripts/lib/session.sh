@@ -1344,7 +1344,7 @@ write_native_gemini_from_canonical() {
         mkdir -p "$chats_dir"
         printf '%s\n' "$workspace" > "$project_root_file"
 
-        local msg_tmp
+        local msg_tmp logs_tmp=""
         msg_tmp=$(mktemp "${TMPDIR:-/tmp}/acfs_gemini_msgs.XXXXXX") || return 1
         trap 'rm -f -- "$msg_tmp" "$logs_tmp" 2>/dev/null || true' RETURN
 
@@ -1414,7 +1414,6 @@ write_native_gemini_from_canonical() {
         ' "$canonical_file")"
 
         if [[ -f "$logs_path" ]]; then
-            local logs_tmp
             logs_tmp=$(mktemp "${TMPDIR:-/tmp}/acfs_gemini_logs.XXXXXX") || return 1
             if jq --argjson add "$user_log_entries" '. + $add' "$logs_path" > "$logs_tmp"; then
                 mv -- "$logs_tmp" "$logs_path"

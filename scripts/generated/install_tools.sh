@@ -1150,21 +1150,21 @@ install_utils_aadc() {
     log_step "Installing utils.aadc"
 
     if [[ "${DRY_RUN:-false}" = "true" ]]; then
-        log_info "dry-run: install: trap 'rm -rf \"\$TMPDIR\"' EXIT (target_user)"
+        log_info "dry-run: install: trap 'rm -rf \"\$ACFS_TMP_DIR\"' EXIT (target_user)"
     else
         if ! run_as_target_shell <<'INSTALL_UTILS_AADC'
 # Build aadc from source (no install.sh available)
-TMPDIR="$(mktemp -d)"
-trap 'rm -rf "$TMPDIR"' EXIT
-git clone --depth 1 https://github.com/Dicklesworthstone/aadc.git "$TMPDIR/aadc"
-cd "$TMPDIR/aadc"
+ACFS_TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/acfs_aadc.XXXXXX")"
+trap 'rm -rf "$ACFS_TMP_DIR"' EXIT
+git clone --depth 1 https://github.com/Dicklesworthstone/aadc.git "$ACFS_TMP_DIR/aadc"
+cd "$ACFS_TMP_DIR/aadc"
 cargo build --release
 cp target/release/aadc ~/.cargo/bin/
 INSTALL_UTILS_AADC
         then
-            log_warn "utils.aadc: install command failed: trap 'rm -rf \"\$TMPDIR\"' EXIT"
+            log_warn "utils.aadc: install command failed: trap 'rm -rf \"\$ACFS_TMP_DIR\"' EXIT"
             if type -t record_skipped_tool >/dev/null 2>&1; then
-              record_skipped_tool "utils.aadc" "install command failed: trap 'rm -rf \"\$TMPDIR\"' EXIT"
+              record_skipped_tool "utils.aadc" "install command failed: trap 'rm -rf \"\$ACFS_TMP_DIR\"' EXIT"
             elif type -t state_tool_skip >/dev/null 2>&1; then
               state_tool_skip "utils.aadc"
             fi

@@ -2790,10 +2790,10 @@ modules:
     install:
       - |
         # Build aadc from source (no install.sh available)
-        TMPDIR="$(mktemp -d)"
-        trap 'rm -rf "$TMPDIR"' EXIT
-        git clone --depth 1 https://github.com/Dicklesworthstone/aadc.git "$TMPDIR/aadc"
-        cd "$TMPDIR/aadc"
+        ACFS_TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/acfs_aadc.XXXXXX")"
+        trap 'rm -rf "$ACFS_TMP_DIR"' EXIT
+        git clone --depth 1 https://github.com/Dicklesworthstone/aadc.git "$ACFS_TMP_DIR/aadc"
+        cd "$ACFS_TMP_DIR/aadc"
         cargo build --release
         cp target/release/aadc ~/.cargo/bin/
     verify:
