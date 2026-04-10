@@ -487,7 +487,7 @@ export async function POST(request: NextRequest) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), GA_FETCH_TIMEOUT_MS);
 
-    let response: Response;
+    let response: Response | undefined;
     try {
       const endpoint = new URL('https://www.google-analytics.com/mp/collect');
       endpoint.searchParams.set('measurement_id', GA_MEASUREMENT_ID);
@@ -502,6 +502,9 @@ export async function POST(request: NextRequest) {
           signal: controller.signal,
         }
       );
+    } catch (e) {
+      console.error('GA4 MP fetch error:', e);
+      response = undefined;
     } finally {
       clearTimeout(timeout);
     }
