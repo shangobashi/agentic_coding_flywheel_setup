@@ -210,6 +210,20 @@ describe('Generated verified installer args', () => {
     expect(stackContent).not.toContain('TARGET_USER="${TARGET_USER:-ubuntu}"');
   });
 
+  test('generated direct-exec headers resolve TARGET_HOME via helpers and fail closed', () => {
+    const stackPath = resolve(GENERATED_DIR, 'install_stack.sh');
+    expect(existsSync(stackPath)).toBe(true);
+    const stackContent = readFileSync(stackPath, 'utf-8');
+
+    expect(stackContent).toContain('if declare -f _acfs_resolve_target_home >/dev/null 2>&1; then');
+    expect(stackContent).toContain('TARGET_HOME="$(_acfs_resolve_target_home "${TARGET_USER}" || true)"');
+    expect(stackContent).toContain(
+      'log_error "Unable to resolve TARGET_HOME for \'${TARGET_USER}\'; export TARGET_HOME explicitly"'
+    );
+    expect(stackContent).not.toContain('TARGET_HOME="/home/${TARGET_USER}"');
+    expect(stackContent).not.toContain('TARGET_HOME="/home/${TARGET_USER:-ubuntu}"');
+  });
+
   test('stack.mcp_agent_mail dest uses TARGET_HOME directly without caller HOME fallback', () => {
     const stackPath = resolve(GENERATED_DIR, 'install_stack.sh');
     expect(existsSync(stackPath)).toBe(true);
@@ -312,6 +326,13 @@ describe('Generated filesystem script hardening', () => {
     const filesystemPath = resolve(GENERATED_DIR, 'install_filesystem.sh');
     expect(existsSync(filesystemPath)).toBe(true);
     filesystemContent = readFileSync(filesystemPath, 'utf-8');
+  });
+
+  test('fails closed when TARGET_HOME cannot be resolved instead of guessing /home/$TARGET_USER', () => {
+    expect(filesystemContent).not.toContain('target_home="/home/${TARGET_USER:-ubuntu}"');
+    expect(filesystemContent).toContain(
+      "ERROR: Unable to resolve TARGET_HOME for '${TARGET_USER:-ubuntu}'; export TARGET_HOME explicitly"
+    );
   });
 
   test('does not recursively chown /data (avoid over-broad ownership changes)', () => {

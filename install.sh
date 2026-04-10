@@ -741,7 +741,10 @@ acfs_summary_emit() {
 
     local resolved_target_home="${TARGET_HOME:-}"
     if [[ -z "$resolved_target_home" ]]; then
-        resolved_target_home="$(acfs_home_for_user "${TARGET_USER:-ubuntu}")"
+        resolved_target_home="$(acfs_home_for_user "${TARGET_USER:-ubuntu}" || true)"
+    fi
+    if [[ -z "$resolved_target_home" ]] || [[ "$resolved_target_home" != /* ]]; then
+        return 1
     fi
 
     local summary_home="${ACFS_HOME:-}"
@@ -2347,7 +2350,11 @@ run_as_target() {
     local user="$TARGET_USER"
     local user_home="${TARGET_HOME:-}"
     if [[ -z "$user_home" ]]; then
-        user_home="$(acfs_home_for_user "$user")"
+        user_home="$(acfs_home_for_user "$user" || true)"
+    fi
+    if [[ -z "$user_home" ]] || [[ "$user_home" != /* ]]; then
+        log_error "Unable to resolve TARGET_HOME for '$user'; export TARGET_HOME explicitly"
+        return 1
     fi
     local target_path_prefix="${ACFS_BIN_DIR:-$user_home/.local/bin}:$user_home/.cargo/bin:$user_home/.bun/bin:$user_home/.atuin/bin:$user_home/go/bin"
     local current_path="${PATH:-/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin}"
@@ -2359,7 +2366,7 @@ run_as_target() {
     # avoid login shells and therefore cannot rely on profile files.
     # XDG_RUNTIME_DIR / DBUS_SESSION_BUS_ADDRESS let user services work even when
     # install.sh is running as root and switching to TARGET_USER non-interactively.
-    local -a env_args=("UV_NO_CONFIG=1" "HOME=$user_home" "PATH=$target_path_prefix:$current_path")
+    local -a env_args=("UV_NO_CONFIG=1" "HOME=$user_home" "PATH=$target_path_prefix:$current_path" "TARGET_USER=$user" "TARGET_HOME=$user_home")
     local target_uid=""
     local target_runtime_dir=""
     if target_uid="$(id -u "$user" 2>/dev/null)"; then
@@ -2373,6 +2380,7 @@ run_as_target() {
     fi
 
     # Pass ACFS context variables to target user environment
+    if [[ -n "${ACFS_HOME:-}" ]]; then env_args+=("ACFS_HOME=$ACFS_HOME"); fi
     if [[ -n "${ACFS_BOOTSTRAP_DIR:-}" ]]; then env_args+=("ACFS_BOOTSTRAP_DIR=$ACFS_BOOTSTRAP_DIR"); fi
     if [[ -n "${SCRIPT_DIR:-}" ]]; then env_args+=("SCRIPT_DIR=$SCRIPT_DIR"); fi
     if [[ -n "${ACFS_RAW:-}" ]]; then env_args+=("ACFS_RAW=$ACFS_RAW"); fi
@@ -2933,7 +2941,7 @@ acfs_home_for_user() {
         return 0
     fi
 
-    printf '/home/%s\n' "$user"
+    return 1
 }
 
 # Set up target-specific paths
@@ -2942,7 +2950,11 @@ init_target_paths() {
     # Respect an explicit TARGET_HOME env override; otherwise resolve the
     # target user's actual home directory through NSS/getent first.
     if [[ -z "${TARGET_HOME:-}" ]]; then
-        TARGET_HOME="$(acfs_home_for_user "$TARGET_USER")"
+        TARGET_HOME="$(acfs_home_for_user "$TARGET_USER" || true)"
+    fi
+
+    if [[ -z "$TARGET_HOME" ]]; then
+        log_fatal "Unable to resolve TARGET_HOME for '$TARGET_USER'; export TARGET_HOME explicitly"
     fi
 
     if [[ -z "$TARGET_HOME" ]] || [[ "$TARGET_HOME" == "/" ]]; then
@@ -6207,7 +6219,11 @@ main() {
        && [[ "$DRY_RUN" != "true" ]] && [[ "$PRINT_MODE" != "true" ]]; then
         local _acfs_lock_home="${TARGET_HOME:-}"
         if [[ -z "$_acfs_lock_home" ]]; then
-            _acfs_lock_home="$(acfs_home_for_user "${TARGET_USER:-ubuntu}")"
+            _acfs_lock_home="$(acfs_home_for_user "${TARGET_USER:-ubuntu}" || true)"
+        fi
+        if [[ -z "$_acfs_lock_home" ]] || [[ "$_acfs_lock_home" != /* ]]; then
+            log_error "Unable to resolve TARGET_HOME for '${TARGET_USER:-ubuntu}'; export TARGET_HOME explicitly"
+            exit 1
         fi
         local _acfs_lock_dir="${ACFS_HOME:-${_acfs_lock_home}/.acfs}"
         mkdir -p "$_acfs_lock_dir" 2>/dev/null || true
@@ -6277,7 +6293,12 @@ main() {
             if [[ -n "${TARGET_HOME:-}" ]]; then
                 base_home="$TARGET_HOME"
             else
-                base_home="$(acfs_home_for_user "${TARGET_USER:-ubuntu}")"
+                base_home="$(acfs_home_for_user "${TARGET_USER:-ubuntu}" || true)"
+            fi
+
+            if [[ -z "$base_home" ]]; then
+                echo "ERROR: Unable to resolve TARGET_HOME for '${TARGET_USER:-ubuntu}'; export TARGET_HOME explicitly" >&2
+                exit 1
             fi
 
             if [[ -z "$base_home" ]] || [[ "$base_home" == "/" ]]; then

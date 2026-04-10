@@ -102,8 +102,11 @@ modules:
               _acfs_passwd_entry="$(getent passwd "${TARGET_USER:-ubuntu}" 2>/dev/null || true)"
               if [[ -n "$_acfs_passwd_entry" ]]; then
                 target_home="$(printf '%s\n' "$_acfs_passwd_entry" | cut -d: -f6)"
+              elif [[ "$(whoami 2>/dev/null || true)" == "${TARGET_USER:-ubuntu}" ]] && [[ -n "${HOME:-}" ]] && [[ "${HOME}" == /* ]]; then
+                target_home="${HOME}"
               else
-                target_home="/home/${TARGET_USER:-ubuntu}"
+                echo "ERROR: Unable to resolve TARGET_HOME for '${TARGET_USER:-ubuntu}'; export TARGET_HOME explicitly" >&2
+                exit 1
               fi
               unset _acfs_passwd_entry
             fi
@@ -131,8 +134,11 @@ modules:
               _acfs_passwd_entry="$(getent passwd "${TARGET_USER:-ubuntu}" 2>/dev/null || true)"
               if [[ -n "$_acfs_passwd_entry" ]]; then
                 target_home="$(printf '%s\n' "$_acfs_passwd_entry" | cut -d: -f6)"
+              elif [[ "$(whoami 2>/dev/null || true)" == "${TARGET_USER:-ubuntu}" ]] && [[ -n "${HOME:-}" ]] && [[ "${HOME}" == /* ]]; then
+                target_home="${HOME}"
               else
-                target_home="/home/${TARGET_USER:-ubuntu}"
+                echo "ERROR: Unable to resolve TARGET_HOME for '${TARGET_USER:-ubuntu}'; export TARGET_HOME explicitly" >&2
+                exit 1
               fi
               unset _acfs_passwd_entry
             fi

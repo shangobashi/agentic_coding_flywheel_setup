@@ -603,6 +603,7 @@ if ! declare -f _acfs_resolve_target_home >/dev/null 2>&1; then
     _acfs_resolve_target_home() {
         local user="${1:-ubuntu}"
         local passwd_entry=""
+        local current_user=""
 
         if [[ "$user" == "root" ]]; then
             printf '/root\n'
@@ -618,12 +619,13 @@ if ! declare -f _acfs_resolve_target_home >/dev/null 2>&1; then
             fi
         fi
 
-        if [[ "$(whoami 2>/dev/null || true)" == "$user" ]] && [[ -n "${HOME:-}" ]] && [[ "${HOME}" == /* ]]; then
+        current_user="$(id -un 2>/dev/null || whoami 2>/dev/null || true)"
+        if [[ "$current_user" == "$user" ]] && [[ -n "${HOME:-}" ]] && [[ "${HOME}" == /* ]]; then
             printf '%s\n' "$HOME"
             return 0
         fi
 
-        printf '/home/%s\n' "$user"
+        return 1
     }
 fi
 
@@ -639,7 +641,12 @@ if ! declare -f run_as_target >/dev/null 2>&1; then
         local user_home="${TARGET_HOME:-}"
 
         if [[ -z "$user_home" ]]; then
-            user_home="$(_acfs_resolve_target_home "$user")"
+            user_home="$(_acfs_resolve_target_home "$user" || true)"
+        fi
+
+        if [[ -z "$user_home" ]] || [[ "$user_home" != /* ]]; then
+            log_error "Unable to resolve TARGET_HOME for '$user'; export TARGET_HOME explicitly"
+            return 1
         fi
 
         local target_path_prefix="${ACFS_BIN_DIR:-$user_home/.local/bin}:$user_home/.cargo/bin:$user_home/.bun/bin:$user_home/.atuin/bin:$user_home/go/bin"
@@ -652,8 +659,7 @@ if ! declare -f run_as_target >/dev/null 2>&1; then
         local -a env_args=("UV_NO_CONFIG=1" "HOME=$user_home" "PATH=$target_path_prefix:$current_path")
 
         # Pass core ACFS variables to the target user environment
-        [[ -n "${TARGET_USER:-}" ]] && env_args+=("TARGET_USER=$TARGET_USER")
-        [[ -n "${TARGET_HOME:-}" ]] && env_args+=("TARGET_HOME=$TARGET_HOME")
+        env_args+=("TARGET_USER=$user" "TARGET_HOME=$user_home")
         [[ -n "${ACFS_HOME:-}" ]] && env_args+=("ACFS_HOME=$ACFS_HOME")
 
         # Pass ACFS context variables to the target user environment when available.

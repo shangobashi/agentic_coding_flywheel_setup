@@ -126,6 +126,30 @@ teardown() {
         || fail "Expected run_as_target to extend PATH for target-user bins, got: $captured"
 }
 
+@test "_acfs_resolve_target_home: fails closed when NSS cannot resolve another user" {
+    stub_command "getent" "" 2
+    export HOME="$BATS_TEST_TMPDIR/current-home"
+
+    run _acfs_resolve_target_home "missinguser"
+    assert_failure
+    assert_output ""
+}
+
+@test "run_as_target: fails closed when target home cannot be resolved" {
+    export TARGET_USER="missinguser"
+    unset TARGET_HOME ACFS_BIN_DIR ACFS_HOME
+    stub_command "getent" "" 2
+    spy_command "sudo"
+
+    run run_as_target env
+    assert_failure
+    assert_output --partial "Unable to resolve TARGET_HOME for 'missinguser'"
+
+    if [[ -f "$STUB_DIR/sudo.log" ]] && [[ -s "$STUB_DIR/sudo.log" ]]; then
+        fail "run_as_target should not invoke sudo when TARGET_HOME cannot be resolved"
+    fi
+}
+
 @test "_acfs_force_reinstall_enabled: returns 0 when true" {
     export ACFS_FORCE_REINSTALL="true"
     run _acfs_force_reinstall_enabled

@@ -7,8 +7,27 @@
 
 set -euo pipefail
 
-# Ensure logging functions available
+# Resolve relative helper paths first.
 ACFS_GENERATED_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Ensure logging functions available
+if [[ -f "$ACFS_GENERATED_SCRIPT_DIR/../lib/logging.sh" ]]; then
+    source "$ACFS_GENERATED_SCRIPT_DIR/../lib/logging.sh"
+else
+    # Fallback logging functions if logging.sh not found
+    # Progress/status output should go to stderr so stdout stays clean for piping.
+    log_step() { echo "[*] $*" >&2; }
+    log_section() { echo "" >&2; echo "=== $* ===" >&2; }
+    log_success() { echo "[OK] $*" >&2; }
+    log_error() { echo "[ERROR] $*" >&2; }
+    log_warn() { echo "[WARN] $*" >&2; }
+    log_info() { echo "    $*" >&2; }
+fi
+
+# Source install helpers (run_as_*_shell, selection helpers)
+if [[ -f "$ACFS_GENERATED_SCRIPT_DIR/../lib/install_helpers.sh" ]]; then
+    source "$ACFS_GENERATED_SCRIPT_DIR/../lib/install_helpers.sh"
+fi
 
 # When running a generated installer directly (not sourced by install.sh),
 # set sane defaults and derive ACFS paths from the script location so
@@ -27,19 +46,26 @@ if [[ "${BASH_SOURCE[0]}" = "${0}" ]]; then
     MODE="${MODE:-vibe}"
 
     if [[ -z "${TARGET_HOME:-}" ]]; then
-        if [[ "${TARGET_USER}" == "root" ]]; then
-            TARGET_HOME="/root"
+        if declare -f _acfs_resolve_target_home >/dev/null 2>&1; then
+            TARGET_HOME="$(_acfs_resolve_target_home "${TARGET_USER}" || true)"
         else
-            _acfs_passwd_entry="$(getent passwd "${TARGET_USER}" 2>/dev/null || true)"
-            if [[ -n "$_acfs_passwd_entry" ]]; then
-                TARGET_HOME="$(printf '%s\n' "$_acfs_passwd_entry" | cut -d: -f6)"
-            elif [[ "$(whoami 2>/dev/null || true)" == "${TARGET_USER}" ]]; then
-                TARGET_HOME="${HOME}"
+            if [[ "${TARGET_USER}" == "root" ]]; then
+                TARGET_HOME="/root"
             else
-                TARGET_HOME="/home/${TARGET_USER}"
+                _acfs_passwd_entry="$(getent passwd "${TARGET_USER}" 2>/dev/null || true)"
+                if [[ -n "$_acfs_passwd_entry" ]]; then
+                    TARGET_HOME="$(printf '%s\n' "$_acfs_passwd_entry" | cut -d: -f6)"
+                elif [[ "$(id -un 2>/dev/null || true)" == "${TARGET_USER}" ]] && [[ -n "${HOME:-}" ]] && [[ "${HOME}" == /* ]]; then
+                    TARGET_HOME="${HOME}"
+                fi
+                unset _acfs_passwd_entry
             fi
-            unset _acfs_passwd_entry
         fi
+    fi
+
+    if [[ -z "${TARGET_HOME:-}" ]] || [[ "${TARGET_HOME}" != /* ]]; then
+        log_error "Unable to resolve TARGET_HOME for '${TARGET_USER}'; export TARGET_HOME explicitly"
+        exit 1
     fi
 
     # Derive "bootstrap" paths from the repo layout (scripts/generated/.. -> repo root).
@@ -55,23 +81,6 @@ if [[ "${BASH_SOURCE[0]}" = "${0}" ]]; then
 
     export TARGET_USER TARGET_HOME MODE
     export ACFS_BOOTSTRAP_DIR ACFS_LIB_DIR ACFS_GENERATED_DIR ACFS_ASSETS_DIR ACFS_CHECKSUMS_YAML ACFS_MANIFEST_YAML
-fi
-if [[ -f "$ACFS_GENERATED_SCRIPT_DIR/../lib/logging.sh" ]]; then
-    source "$ACFS_GENERATED_SCRIPT_DIR/../lib/logging.sh"
-else
-    # Fallback logging functions if logging.sh not found
-    # Progress/status output should go to stderr so stdout stays clean for piping.
-    log_step() { echo "[*] $*" >&2; }
-    log_section() { echo "" >&2; echo "=== $* ===" >&2; }
-    log_success() { echo "[OK] $*" >&2; }
-    log_error() { echo "[ERROR] $*" >&2; }
-    log_warn() { echo "[WARN] $*" >&2; }
-    log_info() { echo "    $*" >&2; }
-fi
-
-# Source install helpers (run_as_*_shell, selection helpers)
-if [[ -f "$ACFS_GENERATED_SCRIPT_DIR/../lib/install_helpers.sh" ]]; then
-    source "$ACFS_GENERATED_SCRIPT_DIR/../lib/install_helpers.sh"
 fi
 
 # Source contract validation
@@ -166,8 +175,11 @@ if [[ -z "$target_home" ]]; then
     _acfs_passwd_entry="$(getent passwd "${TARGET_USER:-ubuntu}" 2>/dev/null || true)"
     if [[ -n "$_acfs_passwd_entry" ]]; then
       target_home="$(printf '%s\n' "$_acfs_passwd_entry" | cut -d: -f6)"
+    elif [[ "$(whoami 2>/dev/null || true)" == "${TARGET_USER:-ubuntu}" ]] && [[ -n "${HOME:-}" ]] && [[ "${HOME}" == /* ]]; then
+      target_home="${HOME}"
     else
-      target_home="/home/${TARGET_USER:-ubuntu}"
+      echo "ERROR: Unable to resolve TARGET_HOME for '${TARGET_USER:-ubuntu}'; export TARGET_HOME explicitly" >&2
+      exit 1
     fi
     unset _acfs_passwd_entry
   fi
@@ -225,8 +237,11 @@ if [[ -z "$target_home" ]]; then
     _acfs_passwd_entry="$(getent passwd "${TARGET_USER:-ubuntu}" 2>/dev/null || true)"
     if [[ -n "$_acfs_passwd_entry" ]]; then
       target_home="$(printf '%s\n' "$_acfs_passwd_entry" | cut -d: -f6)"
+    elif [[ "$(whoami 2>/dev/null || true)" == "${TARGET_USER:-ubuntu}" ]] && [[ -n "${HOME:-}" ]] && [[ "${HOME}" == /* ]]; then
+      target_home="${HOME}"
     else
-      target_home="/home/${TARGET_USER:-ubuntu}"
+      echo "ERROR: Unable to resolve TARGET_HOME for '${TARGET_USER:-ubuntu}'; export TARGET_HOME explicitly" >&2
+      exit 1
     fi
     unset _acfs_passwd_entry
   fi
