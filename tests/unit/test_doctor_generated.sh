@@ -377,6 +377,56 @@ test_root_checks_preserve_target_context() {
     fi
 }
 
+test_generated_run_manifest_check_command_handles_unresolved_target_home_by_context() {
+    harness_section "Test: Generated run_manifest_check_command only requires TARGET_HOME for target_user checks"
+
+    local checks_file="$REPO_ROOT/scripts/generated/doctor_checks.sh"
+    local temp_root=""
+    temp_root="$(mktemp -d)"
+    local fake_bin="$temp_root/fake-bin"
+    local fake_home="$temp_root/fake-home"
+    mkdir -p "$fake_bin" "$fake_home"
+
+    cat > "$fake_bin/getent" <<'EOF'
+#!/usr/bin/env bash
+exit 2
+EOF
+    chmod +x "$fake_bin/getent"
+
+    cat > "$fake_bin/sudo" <<'EOF'
+#!/usr/bin/env bash
+printf 'sudo-called=%s\n' "$*"
+EOF
+    chmod +x "$fake_bin/sudo"
+
+    local root_output=""
+    root_output=$(HOME="$fake_home" PATH="$fake_bin:/usr/bin:/bin" TARGET_USER=customuser bash -c '
+        source "'"$checks_file"'"
+        run_manifest_check_command root "printf root-check-ran\\n"
+    ' 2>&1 || true)
+
+    if [[ "$root_output" == *"sudo-called="* ]] && [[ "$root_output" != *"Unable to resolve TARGET_HOME"* ]]; then
+        harness_pass "root checks still dispatch when TARGET_HOME is unresolved"
+    else
+        harness_fail "root checks still dispatch when TARGET_HOME is unresolved" "$root_output"
+    fi
+
+    local target_user_output=""
+    target_user_output=$(HOME="$fake_home" PATH="$fake_bin:/usr/bin:/bin" TARGET_USER=customuser bash -c '
+        source "'"$checks_file"'"
+        run_manifest_check_command target_user "printf target-user-check-ran\\n"
+    ' 2>&1 || true)
+
+    if [[ "$target_user_output" == *"Unable to resolve TARGET_HOME for 'customuser'; export TARGET_HOME explicitly"* ]] \
+        && [[ "$target_user_output" != *"sudo-called="* ]]; then
+        harness_pass "target_user checks fail closed when TARGET_HOME is unresolved"
+    else
+        harness_fail "target_user checks fail closed when TARGET_HOME is unresolved" "$target_user_output"
+    fi
+
+    rm -rf "$temp_root"
+}
+
 test_workspace_checks_are_not_required_health_failures() {
     harness_section "Test: Workspace onboarding checks are not required health failures"
 
@@ -419,6 +469,12 @@ test_generated_target_home_fallbacks_are_dynamic() {
         harness_fail "doctor_checks.sh still hardcodes /home/ubuntu for TARGET_HOME fallback"
     else
         harness_pass "doctor_checks.sh no longer hardcodes /home/ubuntu for TARGET_HOME fallback"
+    fi
+
+    if grep -Fq 'target_home="/home/$target_user"' "$doctor_file"; then
+        harness_fail "doctor_checks.sh still guesses /home/\$target_user in run_manifest_check_command"
+    else
+        harness_pass "doctor_checks.sh no longer guesses /home/\$target_user in run_manifest_check_command"
     fi
 
     if grep -Fq '${TARGET_HOME:-/home/ubuntu}' "$filesystem_file"; then
@@ -548,6 +604,7 @@ main() {
     test_manifest_checks_have_required_fields
     test_doctor_summary_counts
     test_root_checks_preserve_target_context
+    test_generated_run_manifest_check_command_handles_unresolved_target_home_by_context
     test_workspace_checks_are_not_required_health_failures
     test_generated_target_home_fallbacks_are_dynamic
     test_meta_skill_arm64_linux_guidance

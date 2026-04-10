@@ -382,9 +382,22 @@ test_dcg_update() {
     fi
     info "Hook status before: $hook_before"
 
-    # Run update (stack only, quiet mode)
+    # Run the exact updater path for DCG without dragging in the rest of the
+    # stack category, which includes heavyweight optional tools like fsfs.
     local update_output
-    update_output=$(acfs-update --stack --yes --quiet 2>&1) || true
+    update_output=$(bash -lc '
+        set -euo pipefail
+        source "$HOME/.acfs/scripts/lib/update.sh"
+        QUIET=true
+        VERBOSE=false
+        YES_MODE=true
+        UPDATE_LOG_FILE=""
+        ensure_path
+        update_run_verified_installer dcg --easy-mode
+        if command -v dcg >/dev/null 2>&1 && command -v claude >/dev/null 2>&1; then
+            dcg install --force >/dev/null 2>&1 || true
+        fi
+    ' 2>&1) || true
 
     # Get version after update
     local version_after
@@ -648,7 +661,7 @@ EOF
                     chmod 755 "$fake_bin/getent"
 
                     cat > "$custom_state" <<\EOF
-{"target_user":"ubuntu"}
+{"target_user":"ubuntu","target_home":"/home/ubuntu"}
 EOF
                     cp /home/ubuntu/.local/bin/acfs-update "$probe_wrapper"
                     chmod 755 "$probe_wrapper"
@@ -772,7 +785,7 @@ EOF
                     chmod 755 "$fake_bin/getent"
 
                     cat > "$custom_state" <<\EOF
-{"target_user":"ubuntu"}
+{"target_user":"ubuntu","target_home":"/home/ubuntu"}
 EOF
                     cp /usr/local/bin/acfs "$probe_wrapper"
                     chmod 755 "$probe_wrapper"

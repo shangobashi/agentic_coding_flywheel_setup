@@ -232,44 +232,68 @@ run_manifest_check_command() {
     local target_path=""
 
     if [[ -z "$target_home" ]]; then
-        if [[ "$target_user" == "root" ]]; then
+        if declare -f _acfs_resolve_target_home >/dev/null 2>&1; then
+            target_home="$(_acfs_resolve_target_home "$target_user" || true)"
+        elif [[ "$target_user" == "root" ]]; then
             target_home="/root"
         else
-            target_home="/home/$target_user"
+            local _acfs_passwd_entry=""
+            _acfs_passwd_entry="$(getent passwd "$target_user" 2>/dev/null || true)"
+            if [[ -n "$_acfs_passwd_entry" ]]; then
+                target_home="$(printf '%s\n' "$_acfs_passwd_entry" | cut -d: -f6)"
+            elif [[ "$(id -un 2>/dev/null || true)" == "$target_user" ]] && [[ -n "${HOME:-}" ]] && [[ "${HOME}" == /* ]]; then
+                target_home="${HOME}"
+            fi
+            unset _acfs_passwd_entry
         fi
     fi
 
-    target_path="$target_home/.local/bin:$target_home/.acfs/bin:$target_home/.bun/bin:$target_home/.cargo/bin:$target_home/.atuin/bin:$target_home/go/bin:${PATH:-/usr/local/bin:/usr/bin:/bin}"
-
     case "$run_as" in
         target_user)
+            if [[ -z "$target_home" ]] || [[ "$target_home" != /* ]] || [[ "$target_home" == "/" ]]; then
+                log_error "Unable to resolve TARGET_HOME for '$target_user'; export TARGET_HOME explicitly"
+                return 1
+            fi
+            target_path="$target_home/.local/bin:$target_home/.acfs/bin:$target_home/.bun/bin:$target_home/.cargo/bin:$target_home/.atuin/bin:$target_home/go/bin:${PATH:-/usr/local/bin:/usr/bin:/bin}"
             if [[ "$(id -un 2>/dev/null || true)" == "$target_user" ]]; then
-                HOME="$target_home" PATH="$target_path" bash -o pipefail -c "$cmd"
+                TARGET_USER="$target_user" TARGET_HOME="$target_home" HOME="$target_home" PATH="$target_path" bash -o pipefail -c "$cmd"
                 return $?
             fi
             if [[ $EUID -eq 0 ]] && command -v runuser >/dev/null 2>&1; then
-                runuser -u "$target_user" -- env HOME="$target_home" PATH="$target_path" bash -o pipefail -c "$cmd"
+                runuser -u "$target_user" -- env TARGET_USER="$target_user" TARGET_HOME="$target_home" HOME="$target_home" PATH="$target_path" bash -o pipefail -c "$cmd"
                 return $?
             fi
             if command -v sudo >/dev/null 2>&1; then
-                sudo -n -u "$target_user" env HOME="$target_home" PATH="$target_path" bash -o pipefail -c "$cmd"
+                sudo -n -u "$target_user" env TARGET_USER="$target_user" TARGET_HOME="$target_home" HOME="$target_home" PATH="$target_path" bash -o pipefail -c "$cmd"
                 return $?
             fi
             return 1
             ;;
         root)
             if [[ $EUID -eq 0 ]]; then
-                bash -o pipefail -c "$cmd"
+                if [[ -n "$target_home" ]] && [[ "$target_home" == /* ]] && [[ "$target_home" != "/" ]]; then
+                    TARGET_USER="$target_user" TARGET_HOME="$target_home" bash -o pipefail -c "$cmd"
+                else
+                    TARGET_USER="$target_user" bash -o pipefail -c "$cmd"
+                fi
                 return $?
             fi
             if command -v sudo >/dev/null 2>&1; then
-                sudo -n env TARGET_USER="$target_user" TARGET_HOME="$target_home" PATH="${PATH:-/usr/local/bin:/usr/bin:/bin}" bash -o pipefail -c "$cmd"
+                if [[ -n "$target_home" ]] && [[ "$target_home" == /* ]] && [[ "$target_home" != "/" ]]; then
+                    sudo -n env TARGET_USER="$target_user" TARGET_HOME="$target_home" PATH="${PATH:-/usr/local/bin:/usr/bin:/bin}" bash -o pipefail -c "$cmd"
+                else
+                    sudo -n env TARGET_USER="$target_user" PATH="${PATH:-/usr/local/bin:/usr/bin:/bin}" bash -o pipefail -c "$cmd"
+                fi
                 return $?
             fi
             return 1
             ;;
         current|*)
-            bash -o pipefail -c "$cmd"
+            if [[ -n "$target_home" ]] && [[ "$target_home" == /* ]] && [[ "$target_home" != "/" ]]; then
+                TARGET_USER="$target_user" TARGET_HOME="$target_home" bash -o pipefail -c "$cmd"
+            else
+                TARGET_USER="$target_user" bash -o pipefail -c "$cmd"
+            fi
             ;;
     esac
 }

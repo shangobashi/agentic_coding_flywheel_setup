@@ -398,6 +398,29 @@ describe('doctor_checks.sh content', () => {
     expect(doctorContent).toMatch(/lang\.bun[^\n]*\ttarget_user"/);
     expect(doctorContent).toMatch(/base\.system\.1[^\n]*\troot"/);
   });
+
+  test('run_manifest_check_command resolves target homes without /home guesses', () => {
+    expect(doctorContent).toContain('target_home="$(_acfs_resolve_target_home "$target_user" || true)"');
+    expect(doctorContent).not.toContain('target_home="/home/$target_user"');
+    expect(doctorContent).toContain(
+      'log_error "Unable to resolve TARGET_HOME for \'$target_user\'; export TARGET_HOME explicitly"'
+    );
+  });
+
+  test('target_user doctor checks receive TARGET_USER and TARGET_HOME env', () => {
+    expect(doctorContent).toContain(
+      'env TARGET_USER="$target_user" TARGET_HOME="$target_home" HOME="$target_home" PATH="$target_path" bash -o pipefail -c "$cmd"'
+    );
+  });
+
+  test('root doctor checks still run when TARGET_HOME is unresolved', () => {
+    expect(doctorContent).toContain(
+      'sudo -n env TARGET_USER="$target_user" PATH="${PATH:-/usr/local/bin:/usr/bin:/bin}" bash -o pipefail -c "$cmd"'
+    );
+    expect(doctorContent).not.toContain(
+      'root)\n            if [[ -z "$target_home" ]] || [[ "$target_home" != /* ]] || [[ "$target_home" == "/" ]]; then'
+    );
+  });
 });
 
 describe('Utils: sortModulesByInstallOrder', () => {

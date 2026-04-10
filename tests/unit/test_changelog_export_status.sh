@@ -1506,6 +1506,44 @@ EOF
     cleanup_mock_env
 }
 
+test_acfs_global_wrapper_does_not_guess_current_home_when_target_home_is_unresolved() {
+    setup_mock_env
+
+    TEST_ROOT_HOME="$TEST_HOME/root-home"
+    TEST_FAKE_BIN="$TEST_HOME/fake-bin"
+
+    mkdir -p "$TEST_ROOT_HOME" "$TEST_FAKE_BIN" "$TEST_HOME/probe"
+    cp "$REPO_ROOT/scripts/acfs-global" "$TEST_HOME/probe/acfs"
+    chmod +x "$TEST_HOME/probe/acfs"
+
+    cat > "$TEST_FAKE_BIN/getent" <<'EOF'
+#!/usr/bin/env bash
+exit 2
+EOF
+    chmod +x "$TEST_FAKE_BIN/getent"
+
+    local custom_state="$TEST_HOME/system-state.json"
+    cat > "$custom_state" <<'JSON'
+{
+  "target_user": "ubuntu"
+}
+JSON
+
+    local output=""
+    output=$(HOME="$TEST_ROOT_HOME" PATH="$TEST_FAKE_BIN:/usr/bin:/bin" \
+        ACFS_SYSTEM_STATE_FILE="$custom_state" \
+        bash "$TEST_HOME/probe/acfs" version 2>&1 || true)
+
+    if [[ "$output" == *"Unable to determine an exact home directory for user 'ubuntu'."* ]] \
+        && [[ "$output" != *"Expected at: $TEST_ROOT_HOME/.local/bin/acfs"* ]]; then
+        harness_pass "global acfs wrapper does not guess current HOME when target_home is unresolved"
+    else
+        harness_fail "global acfs wrapper does not guess current HOME when target_home is unresolved" "$output"
+    fi
+
+    cleanup_mock_env
+}
+
 test_acfs_global_wrapper_ignores_stale_home_adjacent_target_user() {
     setup_mock_env
 
@@ -2104,6 +2142,7 @@ main() {
     test_acfs_update_wrapper_ignores_stale_home_adjacent_target_user || true
     test_acfs_global_wrapper_uses_system_state_target_home_when_getent_unavailable || true
     test_acfs_global_wrapper_repairs_runtime_home_on_direct_exec || true
+    test_acfs_global_wrapper_does_not_guess_current_home_when_target_home_is_unresolved || true
     test_acfs_global_wrapper_ignores_stale_home_adjacent_target_user || true
     test_doctor_agent_checks_use_target_context_under_root_home || true
     test_doctor_deep_agent_auth_uses_target_context_under_root_home || true

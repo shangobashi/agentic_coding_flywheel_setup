@@ -26,16 +26,11 @@ resolve_home_for_user() {
 
   user_home="$(getent passwd "$user" 2>/dev/null | cut -d: -f6)" || true
   if [[ -n "$user_home" ]] && [[ "$user_home" == /* ]]; then
-    printf '%s\n' "$user_home"
+    printf '%s\n' "${user_home%/}"
     return 0
   fi
 
-  if [[ "$user" == "$(whoami 2>/dev/null || true)" ]] && [[ -n "${HOME:-}" ]] && [[ "${HOME}" == /* ]]; then
-    printf '%s\n' "$HOME"
-    return 0
-  fi
-
-  printf '/home/%s\n' "$user"
+  return 1
 }
 
 read_target_user_from_state_file() {
@@ -301,9 +296,24 @@ find_repo_local_update_script() {
 find_update_script_for_user() {
   local user="$1"
   local user_home=""
+  local current_user=""
 
-  user_home="$(resolve_home_for_user "$user")"
-  find_update_script_for_home "$user_home"
+  user_home="$(resolve_home_for_user "$user" || true)"
+  if [[ -n "$user_home" ]] && find_update_script_for_home "$user_home" >/dev/null 2>&1; then
+    find_update_script_for_home "$user_home"
+    return 0
+  fi
+
+  current_user="$(id -un 2>/dev/null || whoami 2>/dev/null || true)"
+  if [[ "$current_user" == "$user" ]] && [[ -n "${HOME:-}" ]] && [[ "${HOME}" == /* ]]; then
+    user_home="${HOME%/}"
+    if find_update_script_for_home "$user_home" >/dev/null 2>&1; then
+      find_update_script_for_home "$user_home"
+      return 0
+    fi
+  fi
+
+  return 1
 }
 
 user_has_installed_update_script() {

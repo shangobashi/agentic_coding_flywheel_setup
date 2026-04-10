@@ -30,16 +30,11 @@ resolve_home_for_user() {
 
     user_home="$(getent passwd "$user" 2>/dev/null | cut -d: -f6)" || true
     if [[ -n "$user_home" ]] && [[ "$user_home" == /* ]]; then
-        printf '%s\n' "$user_home"
+        printf '%s\n' "${user_home%/}"
         return 0
     fi
 
-    if [[ "$user" == "$(whoami 2>/dev/null || true)" ]] && [[ -n "${HOME:-}" ]] && [[ "${HOME}" == /* ]]; then
-        printf '%s\n' "$HOME"
-        return 0
-    fi
-
-    printf '/home/%s\n' "$user"
+    return 1
 }
 
 read_target_user_from_state_file() {
@@ -275,9 +270,24 @@ read_target_user_from_state_hint() {
 find_acfs_bin() {
     local user="$1"
     local user_home=""
+    local current_user=""
 
-    user_home="$(resolve_home_for_user "$user")"
-    find_acfs_bin_for_home "$user_home"
+    user_home="$(resolve_home_for_user "$user" || true)"
+    if [[ -n "$user_home" ]] && find_acfs_bin_for_home "$user_home" >/dev/null 2>&1; then
+        find_acfs_bin_for_home "$user_home"
+        return 0
+    fi
+
+    current_user="$(id -un 2>/dev/null || whoami 2>/dev/null || true)"
+    if [[ "$current_user" == "$user" ]] && [[ -n "${HOME:-}" ]] && [[ "${HOME}" == /* ]]; then
+        user_home="${HOME%/}"
+        if find_acfs_bin_for_home "$user_home" >/dev/null 2>&1; then
+            find_acfs_bin_for_home "$user_home"
+            return 0
+        fi
+    fi
+
+    return 1
 }
 
 find_installed_acfs_owner() {
@@ -414,10 +424,15 @@ main() {
     if [[ -z "$acfs_bin" ]]; then
         echo "Error: ACFS not found for user '$target_user'" >&2
 
-        local target_home
-        target_home="$(resolve_home_for_user "$target_user")"
+        local target_home=""
+        target_home="$(resolve_home_for_user "$target_user" || true)"
 
-        echo "Expected at: $target_home/.local/bin/acfs (or $target_home/.acfs/bin/acfs)" >&2
+        if [[ -n "$target_home" ]]; then
+            echo "Expected at: $target_home/.local/bin/acfs (or $target_home/.acfs/bin/acfs)" >&2
+        else
+            echo "Unable to determine an exact home directory for user '$target_user'." >&2
+            echo "Provide ACFS_STATE_FILE/ACFS_SYSTEM_STATE_FILE with target_home, or re-run from the installed ACFS tree." >&2
+        fi
 
         local candidate_home=""
         local candidate_user=""
